@@ -38,8 +38,8 @@ TARGET="${1:-$SCRIPT_DIR/../suno-mastering-course}"
 # Mastering curriculum docs/setup guide, plus the click-demonstration layer
 # (minus orchestrate.sh) and the on-demand catalog reference.
 FILES=(
-  "docs/suno-mastering-course-breakdown.md"   # authoritative lesson spec
-  "docs/suno-mastering-curriculum.md"         # leaner 6-module operating version
+  "docs/teaching/suno-mastering-course-breakdown.md"   # authoritative lesson spec
+  "docs/teaching/suno-mastering-curriculum.md"         # leaner 6-module operating version
   # docs/opencode-ableton-mcp-setup.md deliberately NOT included: one-time
   # human setup content, not something the agent ever reads or acts on.
   "take_shot.sh"                              # ad hoc screenshot capture
@@ -118,11 +118,11 @@ done
 # so this is a straight cp-with-rename, seeded once.
 known_issues_target="$TARGET/KNOWN_ISSUES.md"
 if [ ! -f "$known_issues_target" ]; then
-  cp -f "$SCRIPT_DIR/docs/MASTERING_COURSE_KNOWN_ISSUES.md" "$known_issues_target"
-  echo "  created: KNOWN_ISSUES.md (seeded from docs/MASTERING_COURSE_KNOWN_ISSUES.md)"
+  cp -f "$SCRIPT_DIR/docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md" "$known_issues_target"
+  echo "  created: KNOWN_ISSUES.md (seeded from docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md)"
 else
   echo "  preserved: KNOWN_ISSUES.md (existing runtime log untouched -- pull its"
-  echo "             entries back into docs/MASTERING_COURSE_KNOWN_ISSUES.md by hand)"
+  echo "             entries back into docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md by hand)"
 fi
 
 echo "[build] done. $((${#FILES[@]} + 1)) files synced."

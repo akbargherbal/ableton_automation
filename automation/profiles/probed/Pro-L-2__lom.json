@@ -1,0 +1,200 @@
+{
+  "probed_at": "20261002T044739Z",
+  "control_mode": "lom",
+  "plugin_query": "FabFilter Pro-L 2",
+  "device_name": "Pro-L 2",
+  "device_class": "PluginDevice",
+  "parameter_count": 17,
+  "parameters": [
+    {
+      "index": 0,
+      "name": "Device On",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "On",
+      "is_enabled": true,
+      "is_quantized": true,
+      "value_items": [
+        "Off",
+        "On"
+      ]
+    },
+    {
+      "index": 1,
+      "name": "Gain",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "0.00 dB",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 2,
+      "name": "Lookahead",
+      "value": 0.036,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "0.180 ms",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 3,
+      "name": "Attack",
+      "value": 0.4072,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "275.0 ms",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 4,
+      "name": "Release",
+      "value": 0.3878,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "400.0 ms",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 5,
+      "name": "Channel Link Transients",
+      "value": 0.375,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "75%",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 6,
+      "name": "Channel Link Release",
+      "value": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "100%",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 7,
+      "name": "Channel Link Center",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Excluded",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 8,
+      "name": "Channel Link LFE",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Excluded",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 9,
+      "name": "Dithering",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Off",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 10,
+      "name": "Noise Shaping",
+      "value": 0.6667,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Optimized",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 11,
+      "name": "Filter DC Offset",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Off",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 12,
+      "name": "Side Chain Triggering",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Off",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 13,
+      "name": "Bypass",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Not Bypassed",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 14,
+      "name": "Output Level",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "0.00 dBTP",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 15,
+      "name": "Receive Midi",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "Enabled",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    },
+    {
+      "index": 16,
+      "name": "MIDI CC",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "-",
+      "is_enabled": true,
+      "is_quantized": false,
+      "value_items": []
+    }
+  ]
+}

@@ -91,8 +91,8 @@ Don't tell the learner the click succeeded until they confirm the tooltip or the
 
 ## Curriculum
 
-- `docs/suno-mastering-course-breakdown.md` — authoritative spec (objectives, must-cover points, definitions, misconceptions, exercises) for Lessons 1–10.
-- `docs/suno-mastering-curriculum.md` — same material as a leaner 6-module operating version, including the defect catalog table.
+- `docs/teaching/suno-mastering-course-breakdown.md` — authoritative spec (objectives, must-cover points, definitions, misconceptions, exercises) for Lessons 1–10.
+- `docs/teaching/suno-mastering-curriculum.md` — same material as a leaner 6-module operating version, including the defect catalog table.
 
 Read the relevant lesson/module section before running it. Don't paraphrase from memory — exact dB ranges and frequency landmarks matter.
 

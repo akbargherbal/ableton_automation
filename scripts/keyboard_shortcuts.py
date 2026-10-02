@@ -122,7 +122,7 @@ SHORTCUTS: dict[str, ShortcutEntry] = {
     ),
     # groove_pool_toggle intentionally does not exist here. Opening the
     # Groove Pool panel is a confirmed Ableton Live 12 crash (see
-    # docs/MASTERING_COURSE_KNOWN_ISSUES.md); removed after a confirmed
+    # docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md); removed after a confirmed
     # crash rather than kept as a blocked-but-callable entry, so
     # load_shortcut("groove_pool_toggle") raises a plain KeyError like any
     # other unknown label -- there is no call path to guard against here.

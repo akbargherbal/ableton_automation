@@ -1,0 +1,24 @@
+{
+  "probed_at": "20261002T044633Z",
+  "control_mode": "gui",
+  "plugin_query": "FabFilter Pro-Q 4",
+  "device_name": "Pro-Q 4",
+  "device_class": "PluginDevice",
+  "parameter_count": 1,
+  "parameters": [
+    {
+      "index": 0,
+      "name": "Device On",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "display_value": "On",
+      "is_enabled": true,
+      "is_quantized": true,
+      "value_items": [
+        "Off",
+        "On"
+      ]
+    }
+  ]
+}

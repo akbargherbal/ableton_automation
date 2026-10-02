@@ -914,7 +914,7 @@ def lookup_control(device_or_context: str, name_hint: str,
                 f"No context {device_or_context!r} in {path.name}. "
                 + (f"Did you mean one of: {close[:5]}?" if close
                    else "No similarly-named context found -- check spelling "
-                        "or run against docs/control_catalog_usage_guide.md.")
+                        "or run against docs/teaching/control_catalog_usage_guide.md.")
             )
 
     hint = name_hint.strip().lower()
@@ -1775,6 +1775,12 @@ def main() -> None:
                          help="Value for --action set. Auto-typed: 'true'/'false' -> bool, "
                               "a bare number -> float, anything else -> string (e.g. a "
                               "ComboBox item name like '1/8').")
+    parser.add_argument("--keys",
+                         help="Send a raw keystroke sequence to the Ableton window via "
+                              "pywinauto type_keys (e.g. '^+r' for Ctrl+Shift+R / Export "
+                              "Audio-Video, '^s' for Save, '^z' for Undo). Requires --live. "
+                              "Use for menu-driven commands that have no automation_id "
+                              "(Export, Freeze, Flatten, Collect All and Save).")
     args = parser.parse_args()
 
     if args.list_tasks:
@@ -1789,6 +1795,23 @@ def main() -> None:
         index = build_automation_id_index(window)
         print(f"Indexed {len(index)} distinct automation_ids.\n", file=sys.stderr)
         list_tracks(index)
+        return
+
+    if args.keys:
+        if args.task or args.control:
+            parser.error("--keys can't be combined with --task/--control -- pick one")
+        _require_pywinauto("--keys")
+        window = _require_ableton_window()
+        if not args.live:
+            print("*** DRY RUN -- nothing will be sent. Pass --live to actually send "
+                  f"keystrokes: {args.keys!r} ***\n")
+            return
+        emit_event("action_start", label=f"send keys {args.keys!r}", level="L2")
+        window.type_keys(args.keys, with_spaces=True)
+        time.sleep(0.2)
+        emit_event("action_result", label=f"send keys {args.keys!r}", level="L2",
+                   result="success", verified=False)
+        print(f"[keys] sent {args.keys!r} to the Ableton window")
         return
 
     if args.control:

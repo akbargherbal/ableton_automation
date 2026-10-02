@@ -12,3 +12,7 @@ docs/live12-manual-en.pdf
 
 # Runtime seq counters inside orchestration output
 LABS/**/.orchestrate_seq
+
+# Automation runtime output
+RUNS/
+automation/profiles/loaded/

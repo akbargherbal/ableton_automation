@@ -19,12 +19,12 @@ The debloat project is closed. All of `PHASED_PLAN.md`'s phases (0, 0b, 1,
 - The Groove Pool crash has no callable path left anywhere in the code
   (`scripts/keyboard_shortcuts.py`) — it's tracked as an open,
   unconfirmed-root-cause investigation in
-  `docs/MASTERING_COURSE_KNOWN_ISSUES.md` instead of a standing warning in
+  `docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md` instead of a standing warning in
   the policy.
 - Host-process liveness detection exists (`AbletonProcessGone`,
   `is_ableton_alive()`) so a crashed Ableton process is caught cleanly
   instead of producing confusing downstream failures.
-- `docs/MASTERING_COURSE_KNOWN_ISSUES.md` now accepts open/unconfirmed
+- `docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md` now accepts open/unconfirmed
   entries, not just settled facts.
 - `SUNO_MASTERING_AGENT_POLICY.md` (shipped as `AGENTS.md` in the runtime
   folder) has been rewritten: no incident history, no phase bookkeeping,
@@ -63,7 +63,7 @@ likely to surface something worth reporting, because they were recent
 changes or were already flagged as open when the debloat project closed:
 
 - **Groove Pool** — still an open, unconfirmed-root-cause row in
-  `docs/MASTERING_COURSE_KNOWN_ISSUES.md`. Not part of this curriculum, so
+  `docs/teaching/MASTERING_COURSE_KNOWN_ISSUES.md`. Not part of this curriculum, so
   no need to seek it out, but if it comes up incidentally, that's useful
   signal for the log.
 - **The Youlean LUFS workaround** — screenshot the meter, read the number

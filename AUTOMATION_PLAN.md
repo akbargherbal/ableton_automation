@@ -1,9 +1,25 @@
 # Automation Pivot Plan
 
-**Status:** proposal, for review
+**Status:** in progress — Phases 0, 1, 2, 4, 5 implemented; 3 partial; 6 done
 **Date:** 2026-10-02
 **Supersedes (eventually):** the teaching orientation in `README.md`, `context.md`,
 `SUNO_MASTERING_AGENT_POLICY.md`
+
+## Implementation status (2026-10-02)
+
+| Phase | State | Evidence |
+|---|---|---|
+| 0 reality sync | ✅ done | `docs/CAPABILITY_MATRIX.md`; live probes of 8 plugins + native EQ |
+| 1 driver + safety | ✅ done | `automation/` package; tempo 120→124→120 round-trip with snapshot/diff/verify |
+| 2 plugin control | ✅ core done | `plugin_profiles.py`; `probe-plugin` live; Pro-Q 4 / Pro-C 3 etc. classified GUI-only |
+| 3 render/export | 🟡 partial | `automation.run keys` + `--keys` UIA sender; Export dialog handling not built |
+| 4 batch runner | ✅ done | `automation/batch.py`; manifest + resume verified |
+| 5 analysis | ✅ done | `automation/analysis/measure.py`; 17 pytest tests pass |
+| 6 harden/docs | ✅ done | policy, builder, README, archived teaching docs |
+
+**Not yet built / open items:** Remote Script extensions for export/save/freeze/
+scenes/selection; plugin-GUI (UIA) automation for GUI-only plugins; the Export
+dialog workflow (needs the user's decision in §7/§3.2); full mastering recipe.
 
 ---
 
