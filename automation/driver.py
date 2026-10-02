@@ -28,7 +28,8 @@ class Driver:
 
     def __init__(self, run_dir: Path | str | None = None, *, name: str = "run",
                  dry_run: bool = False, use_lock: bool = True,
-                 snapshot_on_enter: bool = True) -> None:
+                 snapshot_on_enter: bool = True, interactive: bool = False,
+                 unattended: bool = False) -> None:
         self.repo = uia.repo_root()
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self.run_dir = Path(run_dir) if run_dir else self.repo / RUNS_DIR_NAME / f"{stamp}_{name}"
@@ -36,6 +37,8 @@ class Driver:
         self.dry_run = dry_run
         self.use_lock = use_lock
         self.snapshot_on_enter = snapshot_on_enter
+        self.interactive = interactive
+        self.unattended = unattended
         self.log = RunLog(self.run_dir, run_id=f"{stamp}_{name}")
         self.client = LomClient()
         self._lock = RunLock(self.repo / RUNS_DIR_NAME / ".automation.lock")
@@ -238,10 +241,42 @@ class Driver:
                        returncode=result.returncode)
         return result
 
+    # -- guided human steps --------------------------------------------------
+
+    def handoff(self, handoff, *, interactive: bool | None = None) -> str:
+        """Emit a guided human step and (optionally) block until done.
+
+        - always logs `handoff_required` and returns the formatted instructions
+          (agent-mediated mode: the agent relays them, then resumes),
+        - `interactive=True` blocks on Enter and runs the handoff's verify(),
+        - `unattended=True` on the Driver raises HandoffRequired instead of
+          silently proceeding, so batch items are marked as needing a human.
+        """
+        from .handoff import HandoffRequired, format_handoff
+        text = format_handoff(handoff)
+        self.log.event("handoff_required", id=handoff.id, title=handoff.title,
+                       menu_path=handoff.menu_path, steps=handoff.steps,
+                       expected=handoff.expected)
+        self.log.info(text)
+        if self.unattended:
+            raise HandoffRequired(handoff)
+        block = self.interactive if interactive is None else interactive
+        if block:
+            try:
+                input("  [enter when done, or Ctrl-C to abort] ")
+            except EOFError:
+                raise HandoffRequired(handoff)
+            if handoff.verify is not None and not handoff.verify():
+                self.log.event("handoff_result", id=handoff.id, result="failed")
+                raise verify.VerificationFailed(
+                    f"handoff {handoff.id!r} did not verify after the human step")
+            self.log.event("handoff_result", id=handoff.id, result="success")
+        return text
+
     # -- analysis ------------------------------------------------------------
 
     def analyze(self, audio_path: Path | str, target_lufs: float | None = None) -> dict:
         from .analysis import measure
         result = measure.analyze(audio_path, target_lufs=target_lufs)
-        self.log.event("analysis", file=str(audio_path), **result)
+        self.log.event("analysis", **result)
         return result

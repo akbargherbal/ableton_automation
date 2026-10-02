@@ -12,14 +12,16 @@
 | 0 reality sync | ✅ done | `docs/CAPABILITY_MATRIX.md`; live probes of 8 plugins + native EQ |
 | 1 driver + safety | ✅ done | `automation/` package; tempo 120→124→120 round-trip with snapshot/diff/verify |
 | 2 plugin control | ✅ core done | `plugin_profiles.py`; `probe-plugin` live; Pro-Q 4 / Pro-C 3 etc. classified GUI-only |
-| 3 render/export | 🟡 partial | `automation.run keys` + `--keys` UIA sender; Export dialog handling not built |
+| 3 render/export | 🟡 mostly done (hybrid) | `automation.run keys`; `export_audio` recipe = prepare (guided dialog) + verify (measure); `handoff.py` + `guide` |
 | 4 batch runner | ✅ done | `automation/batch.py`; manifest + resume verified |
 | 5 analysis | ✅ done | `automation/analysis/measure.py`; 17 pytest tests pass |
 | 6 harden/docs | ✅ done | policy, builder, README, archived teaching docs |
 
 **Not yet built / open items:** Remote Script extensions for export/save/freeze/
-scenes/selection; plugin-GUI (UIA) automation for GUI-only plugins; the Export
-dialog workflow (needs the user's decision in §7/§3.2); full mastering recipe.
+scenes/selection; plugin-GUI (UIA) automation for GUI-only plugins; full
+mastering recipe. The Export dialog is handled as a **guided handoff**
+(`export_audio` stage=prepare/verify) rather than fully automated — by explicit
+user preference, full automation is not required.
 
 ---
 
@@ -175,6 +177,17 @@ intake → plan → preflight → snapshot → execute → verify → report
                                       ▼
                         Ableton Live 12 (Windows)
 ```
+
+### 3.4 Guided handoff — partial automation is a valid outcome
+
+Full automation is not the goal; a working outcome is. When a step is fragile,
+version-sensitive, or modal (Export dialog, GUI-only plugin parameters, OS file
+pickers, Freeze/Flatten), automation does everything up to it, emits **precise**
+instructions (menu path/shortcut + anchor + Info Panel tooltip + expected end
+state), waits, then **resumes and verifies**. 90% automated is fine; 80% is fine.
+This is implemented as `automation.handoff.Handoff` + `Driver.handoff()` + the
+`automation.run guide` command, with per-run modes (agent-mediated, interactive,
+unattended). `export_audio` is the reference recipe.
 
 ---
 

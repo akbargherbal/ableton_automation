@@ -9,12 +9,13 @@ A recipe module exposes:
 
 from __future__ import annotations
 
-from . import device_report, import_audio, set_tempo
+from . import device_report, export_audio, import_audio, set_tempo
 
 RECIPES = {
     set_tempo.NAME: set_tempo,
     import_audio.NAME: import_audio,
     device_report.NAME: device_report,
+    export_audio.NAME: export_audio,
 }
 
 

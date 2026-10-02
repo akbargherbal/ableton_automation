@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .driver import Driver
+from .handoff import HandoffRequired
 from .recipes import get as get_recipe
 
 
@@ -97,7 +98,7 @@ def _kwargs_for(row: dict, recipe) -> dict:
 def run_batch(recipe_name: str, manifest_path: Path | str, *,
               out_dir: Path | str | None = None, resume: bool = True,
               limit: int | None = None, dry_run: bool = False,
-              defaults: dict | None = None) -> dict:
+              defaults: dict | None = None, interactive: bool = False) -> dict:
     recipe = get_recipe(recipe_name)
     rows, fmt = load_manifest(manifest_path)
     out_root = Path(out_dir) if out_dir else Path(manifest_path).parent / f"batch_{recipe_name}"
@@ -124,13 +125,20 @@ def run_batch(recipe_name: str, manifest_path: Path | str, *,
 
         try:
             with Driver(run_dir=item_dir, name=f"batch_{recipe_name}_{i}",
-                        dry_run=dry_run) as d:
+                        dry_run=dry_run, interactive=interactive,
+                        unattended=not interactive) as d:
                 result = recipe.run(d, **kwargs)
             row["_status"] = "done"
             row["_result"] = result
             row.pop("_error", None)
             summary["done"] += 1
             summary["results"].append({"index": i, "status": "done", "result": result})
+        except HandoffRequired as e:
+            row["_status"] = "needs_human"
+            row["_error"] = f"human step required: {e.handoff.title}"
+            summary["failed"] += 1
+            summary["results"].append({"index": i, "status": "needs_human",
+                                       "error": row["_error"]})
         except Exception as e:
             row["_status"] = "failed"
             row["_error"] = f"{type(e).__name__}: {e}"

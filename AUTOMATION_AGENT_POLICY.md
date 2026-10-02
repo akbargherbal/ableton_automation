@@ -20,11 +20,52 @@ Work top-down; stop at the first layer that can do the job.
    browser drag-drop, plugin GUIs, anything with no LOM surface. This layer
    moves the real UI; it is slower and version-sensitive, so it is the fallback,
    not the default.
-3. **Human** — last resort for a true gap. State the exact menu path and the
-   outcome you expected, and ask the user to confirm.
+3. **Guided handoff** — do everything up to the hard step, then give the user
+   precise instructions and resume afterwards. This is a *success*, not a
+   failure. See "Partial Automation" below.
+4. **Abort** — only if even a handoff is unsafe or impossible.
 
 Never guess a click coordinate. Never call `RangeValuePattern.SetValue()` on a
 Slider — it is confirmed to crash Ableton.
+
+## Partial Automation ("90% is still better than nothing")
+
+Full automation is not the goal; a working outcome is. When a step is fragile,
+version-sensitive, or modal — the Export dialog, a plugin GUI with no LOM
+surface, an OS file picker, Freeze/Flatten — **do the automated parts, then hand
+the hard step to the user with precise instructions, and verify the result
+afterwards.** Do not stall the whole task over one un-automatable step.
+
+The pattern:
+
+1. Do all LOM/UIA steps up to the hard one.
+2. Emit a handoff: exact **menu path / shortcut**, **spatial anchor**, the
+   **Info Panel tooltip** to confirm (if any), ordered steps, and the expected
+   end state. Use `automation.run guide` for an ad-hoc step, or a recipe's
+   built-in handoff (e.g. `export_audio` stage=prepare).
+3. Wait for the user to confirm they did it.
+4. **Resume and verify** — read the value back, or measure the file
+   (`automation.run analyze`). A handoff is not done until its result is
+   confirmed.
+
+`Driver.handoff()` logs an `EVENT: handoff_required` and prints the steps.
+Modes: agent-mediated (default — the agent relays and waits), `--interactive`
+(CLI blocks on Enter and runs the handoff's verify), and `unattended` (batch
+raises `HandoffRequired` and marks the item `needs_human` rather than skipping it
+silently).
+
+Example — export:
+
+```
+# 1. automated setup happens first (import, chain, etc.)
+python3 -m automation.run recipe --name export_audio \
+    --set out=/mnt/c/Users/DELL/Music/master.wav --set stage=prepare
+# -> prints the exact Export-dialog settings; user performs them
+# 2. after the user exports:
+python3 -m automation.run recipe --name export_audio \
+    --set out=/mnt/c/Users/DELL/Music/master.wav --set stage=verify \
+    --set target_lufs=-9
+```
 
 ## Safety Spine (non-negotiable for mutating tasks)
 

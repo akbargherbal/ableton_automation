@@ -50,6 +50,31 @@ menus, dialogs, browser drag-drop, and plugin GUIs that LOM cannot touch.
 - **Analysis** — `automation.analysis.measure` (LUFS / true-peak / spectrum),
   pure Python. Closes the verification loop on rendered audio.
 
+## Partial automation (guided handoff)
+
+Not everything needs to be 100% automated. For fragile/modal steps — the Export
+dialog, GUI-only plugin parameters, Freeze/Flatten — the driver does all the
+automated work, emits precise human instructions, waits, then **resumes and
+verifies**. 90% automated is a success, not a failure.
+
+```bash
+# emit instructions for a human step (ad-hoc)
+python3 -m automation.run guide --title "Freeze 'Guitar'" \
+    --menu "right-click the track header" \
+    --step "Right-click the 'Guitar' track header" \
+    --step "Choose Freeze Track" --expect "track is grey/frozen"
+
+# hybrid export: prepare (guided dialog) then verify (measured)
+python3 -m automation.run recipe --name export_audio \
+    --set out=/mnt/c/Users/DELL/Music/master.wav --set stage=prepare
+#   ...user performs the Export dialog...
+python3 -m automation.run recipe --name export_audio \
+    --set out=/mnt/c/Users/DELL/Music/master.wav --set stage=verify --set target_lufs=-9
+```
+
+In batch runs, a handoff item is marked `needs_human` (not silently skipped);
+`--interactive` lets a terminal user complete it.
+
 ## Quick start
 
 Run from the repo root with **WSL `python3`**:

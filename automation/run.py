@@ -142,7 +142,8 @@ def cmd_recipe(args) -> int:
             return 2
         kwargs[key] = target_type(raw)
     with Driver(name=args.name, dry_run=args.dry_run,
-                snapshot_on_enter=not args.no_snapshot) as d:
+                snapshot_on_enter=not args.no_snapshot,
+                interactive=args.interactive) as d:
         result = recipe.run(d, **kwargs)
         _print(result)
     return 0
@@ -177,7 +178,26 @@ def cmd_batch(args) -> int:
         defaults[k.strip()] = v
     _print(run_batch(args.recipe, args.manifest, out_dir=args.out,
                      resume=not args.no_resume, limit=args.limit,
-                     dry_run=args.dry_run, defaults=defaults))
+                     dry_run=args.dry_run, defaults=defaults,
+                     interactive=args.interactive))
+    return 0
+
+
+def cmd_guide(args) -> int:
+    from .handoff import Handoff, format_handoff
+    from .log import RunLog
+    handoff = Handoff(id=args.id, title=args.title, menu_path=args.menu,
+                      steps=args.step, expected=args.expect)
+    log = RunLog(None)
+    log.event("handoff_required", id=handoff.id, title=handoff.title,
+              menu_path=handoff.menu_path, steps=handoff.steps,
+              expected=handoff.expected)
+    print(format_handoff(handoff))
+    if args.interactive:
+        try:
+            input("  [enter when done, or Ctrl-C to abort] ")
+        except EOFError:
+            pass
     return 0
 
 
@@ -262,7 +282,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--set", action="append", metavar="KEY=VALUE")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-snapshot", action="store_true")
+    p.add_argument("--interactive", action="store_true",
+                   help="block on Enter at a human handoff step")
     p.set_defaults(func=cmd_recipe)
+
+    p = sub.add_parser("guide", help="emit precise instructions for a human step")
+    p.add_argument("--id", default="guide")
+    p.add_argument("--title", required=True)
+    p.add_argument("--menu", default="", help="menu path / shortcut")
+    p.add_argument("--step", action="append", required=True,
+                   help="one instruction line (repeatable, in order)")
+    p.add_argument("--expect", default="", help="what the user should confirm")
+    p.add_argument("--interactive", action="store_true")
+    p.set_defaults(func=cmd_guide)
 
     p = sub.add_parser("uia", help="UI-automation fallback (Windows layer)")
     p.add_argument("--control", required=True)
@@ -281,6 +313,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--no-resume", action="store_true")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--interactive", action="store_true",
+                   help="allow human handoff steps (default: fail the item)")
     p.set_defaults(func=cmd_batch)
 
     p = sub.add_parser("keys", help="send a raw keystroke sequence (menu shortcuts)")
@@ -301,10 +335,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .handoff import HandoffRequired
+    from .verify import VerificationFailed
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (LomError, FileNotFoundError, ValueError, LookupError) as e:
+    except HandoffRequired as e:
+        print(f"NEEDS HUMAN: {e.handoff.title}", file=sys.stderr)
+        return 3
+    except (LomError, FileNotFoundError, ValueError, LookupError,
+            NotImplementedError, VerificationFailed) as e:
         print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
 
