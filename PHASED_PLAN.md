@@ -13,6 +13,39 @@ facts are in.
 
 ---
 
+## Resume here (next session)
+
+**Done:** Phases 0, 1, 2. Gates **A, B, B2 all PASSED/GO**.
+Committed: `ableton_automation` @ `bb5aa67`; MCP Remote Script @ `a8212fe`.
+
+**Proven end-to-end (Live 12.1 / Windows):** offline `.als` editing exposes
+GUI-only plugin parameters with no GUI Configure. `get_parameter_names` yields the
+declared list; `scripts/als_configure.py` writes `ParameterId` into a slot;
+reopen → LOM-controllable. Verified: Pro-Q 4 `Band 2 Gain` (`parameter_count`
+1→2, `+2.18 dB` → `+15.00 dB`).
+
+**Next: Phase 3 — open the cheap gates.**
+- 3.1 `automation/als/read.py` (promote `scripts/als_probe.py`).
+- 3.2 `automation/als/configure.py` (promote `scripts/als_configure.py`), wired to
+  `plugin_profiles`.
+- 3.3 Extend the actuation ladder to **LOM → ALS → UIA** in `driver`.
+- 3.4 `.als` snapshot/restore (quit Live → swap → reopen).
+- **GATE C:** one GUI-only plugin driven end-to-end with numeric verification.
+
+**Operational facts to remember:**
+- The Remote Script Live **actually loads** is
+  `C:\Users\DELL\OneDrive\Documents\Ableton\User Library\Remote Scripts\AbletonMCP\__init__.py`
+  (Documents is OneDrive-redirected; the `%APPDATA%` copy is a decoy).
+- Editing a Remote Script needs a **full Ableton restart** (reopening the set is not
+  enough).
+- The name→index mapping comes from `LomClient.get_parameter_names()` (Live must be
+  running); index = position in Pro-Q 4's 737-name list.
+- The `.als` writer edits a **copy**; ensure Live does not have that file open.
+- Test artifact `AASHA_exposed_test.als` sits in the AASHA project folder — safe to
+  delete.
+
+---
+
 ## Status log (2026-10-02)
 
 - **Phase 0.1 done** → `docs/SYSTEM_MAP.md`.
@@ -62,8 +95,9 @@ becomes the backbone of Phase 5.
 - **GUI-only plugins confirmed live:** Ozone 12 Equalizer (1 param), Ozone 12
   Dynamics (1), Pro-Q 4 (1), Pro-C 3 (1). LOM-capable: EQ Eight (84), Ozone
   Maximizer (20), Vintage Limiter (13), Pro-L 2 (17).
-- **Likely objective (confirm):** Suno batch mastering (~600 tracks) to a LUFS
-  target with render/export (`AUTOMATION_PLAN.md` §4.H, §7.1).
+- **Objective (confirmed Phase 0.4):** **general-purpose** — "I want to do this
+  thing in Ableton; the agent does it for me — anything doable." The old Suno
+  mastering framing is superseded (kept only as a former example).
 
 ### Evidence tiers used below
 - **Measured** — read from the user's machine/repo this session.
@@ -116,8 +150,8 @@ that costs something.
   portable to Python on Windows. Produce `docs/ALS_CHANNEL.md` with a provisional
   build-vs-port-vs-adopt recommendation.
   - **Answers Q8 (provisional).**
-- [ ] **0.4 Decision questionnaire to the user** (no tech dependency; can be
-  answered in parallel with 0.1–0.3):
+- [x] **0.4 Decision questionnaire to the user** — DONE (answers above):
+  (no tech dependency; can be answered in parallel with 0.1–0.3):
   - Q1 — confirm the objective (Suno batch mastering?) and whether general
     production is in scope.
   - Q4 — offline-first (edit file, open, render) or live-session-first?
@@ -152,11 +186,10 @@ that costs something.
   `ProcessorState` (~636 KB). is it XML, base64, or opaque
   binary? (Tests the "opaque blob" assumption; if parseable, it reorders
   strategy.)
-- [x] **1.4 Differential probe.** PARTIAL — 3 plugin sets cross-compared (all 128
-  slots / 0 exposed). Positive control (a LOM-capable plugin) still needed; see
-  `docs/ALS_FINDINGS.md` §7. diff two saved sets with different plugin
-  parameters to see exactly which nodes change when a value moves. This is the
-  cheapest ground truth for "what is safe to write".
+- [x] **1.4 Differential probe.** DONE — 3 plugin sets cross-compared (all 128
+  slots / 0 exposed). The "positive control" became unnecessary once
+  `get_parameter_names` supplied the declared index list; the write proof in
+  Phase 2 then confirmed the mechanism. See `docs/ALS_FINDINGS.md` §7.
 
 **Deliverables:** `automation/profiles/als/<device>.json`,
 `docs/ALS_FINDINGS.md`.
@@ -272,7 +305,10 @@ numeric verification through the new channel.
 
 ---
 
-## Phase 2 prerequisites & procedure (next action)
+## Phase 2 prerequisites & procedure (COMPLETED — reference only)
+
+> Phase 2 is done and Gate B2 = GO. Kept so the next session can see how the
+> write proof was set up.
 
 To run the decisive write proof we need:
 
@@ -292,10 +328,8 @@ Procedure (all reversible):
 - Round-trip: set value → save → reopen → confirm persistence.
 - Corruption study on disposable copies only.
 
-## Done so far
+## Done so far (updated 2026-10-02)
 
-Phase 0 and Phase 1 (read) complete: `docs/SYSTEM_MAP.md`, `docs/SDK_DECISION.md`,
-`docs/ALS_FINDINGS.md`, `scripts/als_probe.py`,
-`automation/profiles/als/forensics.json`. **Gate B (read) passed.** The single
-highest-value remaining step is Phase 2, which converts the pivot's core claim
-from community assertion + local read evidence to a local write proof.
+**Phases 0, 1 and 2 complete; Gates A, B, B2 PASSED/GO.** Committed in
+`ableton_automation` @ `bb5aa67` and the MCP Remote Script @ `a8212fe`.
+Next actions are in **Resume here** at the top of this file (Phase 3).
