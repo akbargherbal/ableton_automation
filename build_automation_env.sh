@@ -24,13 +24,17 @@ FILES=(
   "take_shot.sh"
 )
 
-OPTIONAL_FILES=(
-  "docs/live12-manual-en.pdf"
-)
+OPTIONAL_FILES=()
 
 DIRS=(
   "automation"
 )
+
+# Local manual sources (text-only). Not committed to the repo (copyright), but
+# synced into the built runtime so it is self-contained for reference. Override
+# with ABLETON_MD_MANUAL / ABLETON_PLUGIN_MANUALS.
+MD_MANUAL_DIR="${ABLETON_MD_MANUAL:-$HOME/Jupyter_Notebooks/OpenCode/ableton-md-manual}"
+PLUGIN_MANUAL_DIR="${ABLETON_PLUGIN_MANUALS:-$HOME/Jupyter_Notebooks/OpenCode/ozone}"
 
 POLICY_SRC_NAME="AUTOMATION_AGENT_POLICY.md"
 POLICY_DEST_NAME="AGENTS.md"
@@ -85,5 +89,23 @@ for d in "${DIRS[@]}"; do
   done
   echo "  copied dir: $d"
 done
+
+# --- local reference manuals (text-only, not committed) -------------------
+sync_manual_dir() {
+  local label="$1" src="$2" dest="$3"
+  if [ ! -d "$src" ]; then
+    echo "  skipped (not present): $label manuals -- $src"
+    return
+  fi
+  mkdir -p "$TARGET/$dest"
+  find "$src" -maxdepth 2 -name '*.md' -type f -exec cp -f {} "$TARGET/$dest/" \;
+  local n
+  n="$(find "$TARGET/$dest" -name '*.md' | wc -l | tr -d ' ')"
+  echo "  synced: $label manuals -> $dest ($n .md files)"
+}
+
+sync_manual_dir "Ableton" "$MD_MANUAL_DIR/manual" "docs/manuals/ableton"
+sync_manual_dir "Ozone" "$PLUGIN_MANUAL_DIR/Ozone12-Manual" "docs/manuals/ozone"
+sync_manual_dir "FabFilter" "$PLUGIN_MANUAL_DIR/FabFilter-Help" "docs/manuals/fabfilter"
 
 echo "[build] done. Point OpenCode's working directory at: $TARGET"

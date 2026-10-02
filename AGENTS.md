@@ -39,6 +39,8 @@ Read first:
 
 - Runtime output goes to `RUNS/<id>/` (gitignored). Probe output to
   `automation/profiles/`.
-- Local manuals beat memory: `~/Jupyter_Notebooks/OpenCode/ableton-md-manual`,
-  `~/Jupyter_Notebooks/OpenCode/ozone`.
+- Local manuals beat memory: markdown at
+  `~/Jupyter_Notebooks/OpenCode/ableton-md-manual/manual/` and
+  `~/Jupyter_Notebooks/OpenCode/ozone/{Ozone12-Manual,FabFilter-Help}/`
+  (prefer these over `live12-manual-en.pdf`).
 - Tests: `pytest tests/` (see `tests/`).

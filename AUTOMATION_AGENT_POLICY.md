@@ -60,11 +60,11 @@ Rules:
   tools, which are 1-based). See `docs/CAPABILITY_MATRIX.md` for the command set.
 - **`automation.analysis.measure`** — LUFS / true-peak / spectrum. Replaces the
   screenshot-the-meter workaround. `python3 -m automation.run analyze --file X`.
-- **Manuals (local, prefer over memory):**
-  - Ableton Live 12: `~/Jupyter_Notebooks/OpenCode/ableton-md-manual/manual/*.md`
-    (markdown, chaptered) — use this instead of the PDF.
-  - Ozone 12: `~/Jupyter_Notebooks/OpenCode/ozone/Ozone12-Manual/*.md`
-  - FabFilter: `~/Jupyter_Notebooks/OpenCode/ozone/FabFilter-Help/*.md`
+- **Manuals — markdown, not the PDF.** Consult before memory. In the built
+  runtime they are at `docs/manuals/{ableton,ozone,fabfilter}/`; on the dev
+  machine at `~/Jupyter_Notebooks/OpenCode/ableton-md-manual/manual/` and
+  `~/Jupyter_Notebooks/OpenCode/ozone/{Ozone12-Manual,FabFilter-Help}/`.
+  Do not use `live12-manual-en.pdf` (superseded by the chaptered markdown).
 - **`docs/CAPABILITY_MATRIX.md`** — the authoritative map of what is LOM vs UIA
   vs gap, and which plugins expose parameters. Consult before assuming.
 

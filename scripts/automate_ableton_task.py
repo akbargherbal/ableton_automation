@@ -802,7 +802,7 @@ def click_by_id(window: UIAWrapper, auto_id: str, dry_run: bool, label: str,
     if keyboard_shortcut is None:
         print(f"  [escalate] {label}: L1 (mouse) exhausted. No confirmed keyboard "
               "shortcut supplied for this control -- not the same as 'none exists'; "
-              "check ableton-live-12-manual-en.pdf or the (not-yet-built) "
+              "check the Live 12 manual (markdown) or the (not-yet-built) "
               "keyboard-shortcut index before assuming there isn't one.")
         emit_event("escalate", label=label, from_level="L1", to_level="L2",
                     reason="no_keyboard_shortcut_supplied")
