@@ -20,7 +20,18 @@ names against whatever parameters the plugin *does* expose.
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 from .verify import find_param
+
+PROFILES_DIR = Path(__file__).resolve().parent / "profiles" / "als"
+
+
+def profile_slug(device_name: str) -> str:
+    """`Pro-Q 4` -> `Pro-Q-4` (matches the saved `<slug>_parameter_names.json`)."""
+    return re.sub(r"[^0-9A-Za-z._-]+", "-", (device_name or "").strip()).strip("-")
 
 # Confirmed live (2026-10-02), names normalized to lowercase vendor-less form.
 # These are HINTS for offline planning only -- classify() always prefers the
@@ -68,3 +79,66 @@ def resolve_parameter(device_parameters: dict, friendly: str) -> dict | None:
 
 def parameter_names(device_parameters: dict) -> list[str]:
     return [p.get("name", "") for p in device_parameters.get("parameters", [])]
+
+
+# -- declared parameter profiles (the `.als` ParameterId source) -------------
+
+def declared_profile_path(device_name: str,
+                          profiles_dir: Path | str | None = None) -> Path:
+    base = Path(profiles_dir) if profiles_dir else PROFILES_DIR
+    return base / f"{profile_slug(device_name)}_parameter_names.json"
+
+
+def declared_parameter_names(device_name: str,
+                             profiles_dir: Path | str | None = None) -> list[str] | None:
+    """The plugin's own declared parameter list, saved from `get_parameter_names`.
+
+    This is the authoritative source for a `.als` slot's `ParameterId`: the
+    value is the *index into this list*. Returns None when no profile exists.
+    """
+    path = declared_profile_path(device_name, profiles_dir)
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    names = data.get("names") if isinstance(data, dict) else None
+    return list(names) if names else None
+
+
+def declared_parameter_index(device_name: str, friendly: str,
+                             profiles_dir: Path | str | None = None) -> int | None:
+    """Resolve a friendly name to its declared index (exact, then unique sub)."""
+    names = declared_parameter_names(device_name, profiles_dir)
+    if not names:
+        return None
+    needle = friendly.strip().lower()
+    exact = [i for i, n in enumerate(names) if n.lower() == needle]
+    if exact:
+        return exact[0]
+    subs = [i for i, n in enumerate(names) if needle and needle in n.lower()]
+    return subs[0] if len(subs) == 1 else None
+
+
+def describe_channels(device_name: str, parameter_count: int | None = None
+                      ) -> dict[str, dict]:
+    """Which actuation channel applies, for the LOM -> ALS -> UIA ladder.
+
+    `lom` is tried first. A GUI-only device has two deterministic fallbacks:
+    the offline `.als` exposure (then values are set through LOM after reopen)
+    or live plugin-GUI automation via UIA.
+    """
+    mode = classify(device_name, parameter_count)
+    if mode == "lom":
+        return {"lom": {"available": True},
+                "als": {"available": False, "reason": "already LOM-drivable"},
+                "uia": {"available": False, "reason": "already LOM-drivable"}}
+    has_profile = declared_parameter_names(device_name) is not None
+    return {
+        "lom": {"available": False,
+                "reason": f"exposes only {parameter_count} LOM param(s)"},
+        "als": {"available": has_profile,
+                "requires": "close the set, run als.configure, reopen",
+                "reason": None if has_profile else
+                "no declared-parameter profile saved (run get_parameter_names)"},
+        "uia": {"available": True,
+                "requires": "plugin window open; driven via pywinauto"},
+    }

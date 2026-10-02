@@ -17,6 +17,7 @@ TARGET="${1:-$SCRIPT_DIR/../ableton-automation-runtime}"
 
 FILES=(
   "docs/CAPABILITY_MATRIX.md"
+  "docs/CHANNEL_MATRIX.md"
   "scripts/automate_ableton_task.py"
   "scripts/dump_ableton_pywinauto.py"
   "scripts/keyboard_shortcuts.py"

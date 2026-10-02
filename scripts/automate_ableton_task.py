@@ -230,6 +230,12 @@ TASK_REGISTRY: dict[str, dict] = {
         "required_args": ["tracks"], "optional_args": [], "atomic": True,
         "description": "Arm a track for recording",
     },
+    "open_set": {
+        "required_args": ["file"], "optional_args": ["discard_unsaved"],
+        "atomic": True,
+        "description": "Open a Live set by absolute path via the Open dialog; "
+                        "aborts on a save prompt unless discard_unsaved is set",
+    },
     "solo_one": {
         "required_args": ["tracks", "seconds"], "optional_args": [], "atomic": True,
         "description": "Solo one track, play, stop, unsolo",
@@ -1272,6 +1278,199 @@ def task_arm_track(window: UIAWrapper, track_index: int, dry_run: bool) -> None:
                 verify=lambda: get_toggle_state(resolve(window, monitor_id)) is True)
 
 
+def _desktop_windows():
+    from pywinauto import Desktop
+    for backend in ("uia", "win32"):
+        try:
+            for w in Desktop(backend=backend).windows():
+                yield w
+        except Exception:
+            continue
+
+
+def _find_dialog(window: UIAWrapper, fragments, timeout: float = 12.0):
+    """Find a top-level window other than Ableton's main window whose title
+    contains any of `fragments` (case-insensitive). Used for the Open dialog
+    and any 'save changes?' prompt that precedes it."""
+    main_handle = getattr(getattr(window, "element_info", None), "handle", None)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for w in _desktop_windows():
+            try:
+                if w.element_info.handle == main_handle:
+                    continue
+                title = w.window_text() or ""
+            except Exception:
+                continue
+            if any(f.lower() in title.lower() for f in fragments):
+                return w
+        time.sleep(0.4)
+    return None
+
+
+def _dialog_buttons(dlg: UIAWrapper) -> list[str]:
+    texts: list[str] = []
+
+    def _walk(ctrl: UIAWrapper, depth: int) -> None:
+        if depth > 15:
+            return
+        try:
+            if ctrl.element_info.control_type == "Button":
+                t = (ctrl.window_text() or "").strip()
+                if t:
+                    texts.append(t)
+        except Exception:
+            pass
+        try:
+            children = ctrl.children()
+        except Exception:
+            children = []
+        for child in children:
+            _walk(child, depth + 1)
+
+    _walk(dlg, 0)
+    return texts
+
+
+def _click_button_by_text(dlg: UIAWrapper, names) -> bool:
+    wanted = tuple(n.lower() for n in names)
+    found: list[UIAWrapper] = []
+
+    def _walk(ctrl: UIAWrapper, depth: int) -> None:
+        if found or depth > 15:
+            return
+        try:
+            text = (ctrl.window_text() or "").strip().lower()
+            ctype = ctrl.element_info.control_type
+        except Exception:
+            text, ctype = "", ""
+        if ctype == "Button" and text in wanted:
+            found.append(ctrl)
+            return
+        try:
+            children = ctrl.children()
+        except Exception:
+            children = []
+        for child in children:
+            _walk(child, depth + 1)
+
+    _walk(dlg, 0)
+    if found:
+        found[0].click_input()
+        return True
+    return False
+
+
+def _find_ableton_dialog(window: UIAWrapper, timeout: float = 3.0):
+    """First modal dialog owned by the Ableton process (not the main window).
+
+    Ableton's 'save changes?' prompt does NOT reliably put 'save' in its title
+    (observed: the document name), so matching by title is unsafe; matching by
+    owning process is robust.
+    """
+    main_handle = getattr(getattr(window, "element_info", None), "handle", None)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for w in _desktop_windows():
+            try:
+                if w.element_info.handle == main_handle:
+                    continue
+                if (_ableton_pid is not None
+                        and w.element_info.process_id != _ableton_pid):
+                    continue
+                if not (w.window_text() or "").strip():
+                    continue
+            except Exception:
+                continue
+            return w
+        time.sleep(0.3)
+    return None
+
+
+def task_open_set(window: UIAWrapper, file_path: str, dry_run: bool,
+                  discard_unsaved: bool = False) -> None:
+    """Open a Live set by absolute Windows path via the Open dialog.
+
+    Ctrl+O -> if Ableton asks to save the current set, either abort (default)
+    or click Don't Save (`discard_unsaved=True`) -> set the filename field
+    (automation_id '1148' in the common dialog) -> Enter -> wait for close.
+
+    The save-prompt branch is deliberately explicit: silently choosing "Don't
+    Save" can discard a user's work, so it is opt-in and every branch is logged
+    via emitted events. (On the first Gate C run the prompt was dismissed by
+    the human, not by this task -- hence the opt-in flag rather than a guess.)
+    """
+    emit_event("task_start", task="open_set", file=file_path, dry_run=dry_run,
+               discard_unsaved=discard_unsaved)
+    print(f"Task: open Live set {file_path!r} (discard_unsaved={discard_unsaved})")
+    if dry_run:
+        print("  [dry-run] would send Ctrl+O and type the path")
+        return
+
+    ensure_window_ready(window)
+    check_ableton_alive()
+    window.type_keys("^o")
+    time.sleep(1.5)
+
+    dlg = _find_ableton_dialog(window, timeout=3.0)
+    if dlg is not None:
+        title = dlg.window_text() or ""
+        buttons = _dialog_buttons(dlg)
+        lower = [b.lower() for b in buttons]
+        is_save_prompt = (any(b in ("save", "don't save", "don\u2019t save", "no")
+                              for b in lower)
+                          and not any(b == "open" for b in lower))
+        if is_save_prompt:
+            emit_event("save_prompt", title=title, buttons=buttons,
+                       discard=discard_unsaved)
+            print(f"  save prompt: {title!r} buttons={buttons}")
+            if not discard_unsaved:
+                raise RuntimeError(
+                    f"Ableton is asking to save the current set (dialog {title!r}, "
+                    f"buttons {buttons}). Save or discard it in the UI, or re-run "
+                    "with --discard-unsaved to click Don't Save automatically."
+                )
+            clicked = _click_button_by_text(
+                dlg, ("don't save", "don\u2019t save", "no"))
+            emit_event("save_prompt_handled", clicked=clicked)
+            if not clicked:
+                raise RuntimeError(
+                    f"could not find a discard button among {buttons}")
+            time.sleep(2.0)
+            dlg = _find_dialog(window, ("open", "live set"), timeout=12.0)
+        elif not any(f in title.lower() for f in ("open", "live set")):
+            raise RuntimeError(
+                f"unexpected dialog after Ctrl+O: {title!r} (buttons {buttons})")
+        else:
+            print(f"  dialog: {title!r}")
+
+    if dlg is None:
+        dlg = _find_dialog(window, ("open", "live set"), timeout=12.0)
+    if dlg is None:
+        raise RuntimeError("Open dialog did not appear after Ctrl+O")
+
+    edit = find_control(dlg, "1148", max_depth=15)
+    if edit is not None:
+        try:
+            edit.click_input()
+        except Exception:
+            pass
+    dlg.type_keys("^a")
+    dlg.type_keys(file_path, with_spaces=True)
+    time.sleep(0.4)
+    dlg.type_keys("{ENTER}")
+
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if _find_dialog(window, ("open", "live set"), timeout=0.2) is None:
+            break
+        time.sleep(0.5)
+    time.sleep(2.0)
+    emit_event("action_result", label=f"open set {file_path}", level="L2",
+               result="success", verified=False)
+    print(f"[open_set] submitted {file_path!r}")
+
+
 def task_solo_one(window: UIAWrapper, track_index: int,
                     seconds: float, dry_run: bool) -> None:
     """One solo -> play -> wait -> stop -> unsolo cycle for a single track.
@@ -1745,7 +1944,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--task", choices=["arm_track", "solo_one", "solo_tour",
-                                             "set_tempo",
+                                             "set_tempo", "open_set",
                                              "probe_toggle", "probe_solo_transport",
                                              "probe_keyboard_activator",
                                              "read_solo_states", "idiom_demo",
@@ -1753,6 +1952,12 @@ def main() -> None:
                          help="Which demo task to run")
     parser.add_argument("--tracks", type=int, nargs="+", default=[],
                          help="Zero-based track indices to act on")
+    parser.add_argument("--file",
+                         help="Absolute Windows path for --task open_set")
+    parser.add_argument("--discard-unsaved", action="store_true",
+                         help="For --task open_set: if Ableton asks to save the "
+                              "current set, click Don't Save (default: abort and "
+                              "let the operator decide; never silently discards)")
     parser.add_argument("--seconds", type=float, default=3.0,
                          help="Playback duration per track for solo_tour (default: 3.0)")
     parser.add_argument("--bpm", type=float, default=120.0,
@@ -1859,7 +2064,13 @@ def main() -> None:
         print(f"*** {args.task} always live-clicks regardless of --live -- "
               "a probe that doesn't click can't tell you anything. ***\n")
 
-    if args.task == "arm_track":
+    if args.task == "open_set":
+        if not args.file:
+            parser.error("--task open_set needs --file <absolute path>")
+        run_task("open_set", [],
+                  lambda: task_open_set(window, args.file, dry_run,
+                                        discard_unsaved=args.discard_unsaved))
+    elif args.task == "arm_track":
         if len(args.tracks) != 1:
             parser.error("--task arm_track needs exactly one --tracks index")
         run_task("arm_track", args.tracks,

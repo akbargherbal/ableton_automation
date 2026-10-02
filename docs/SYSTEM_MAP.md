@@ -2,7 +2,8 @@
 
 **Verified:** 2026-10-02 against the live machine and local sources.
 **Phase 0.1 deliverable** of `PHASED_PLAN.md`. Supersedes the scattered plumbing
-notes in `AUTOMATION_PLAN.md` §1 and answers Q3 from the plan.
+notes in the original `AUTOMATION_PLAN.md` §1 (full text in git history) and
+answers Q3 from the plan.
 
 ## 1. Host facts
 
@@ -38,6 +39,8 @@ a plain WSL `python3` process without OpenCode in the loop.
 | `driver.py` | Unified actuator: lock, snapshot, execute, verify, log |
 | `lom.py` | TCP client to the Remote Script (`:9877`) |
 | `uia.py` | Subprocess bridge to Windows `python.exe` click primitives |
+| `als/` | Offline `.als` channel: `read` (parse/diff), `configure` (expose params), `snapshot` (backup/restore) |
+| `channels.py` | Channel-selection matrix (LOM/ALS/UIA/handoff/analysis/SDK-future) → `docs/CHANNEL_MATRIX.md` |
 | `state.py` | LOM snapshot/diff + best-effort `.als` backup |
 | `verify.py` | Numeric post-condition assertions (read-back) |
 | `lock.py` | Single-run lock (`RUNS/.automation.lock`) |
@@ -73,6 +76,7 @@ OpenCode agent ──MCP──▶ MCP_Server/server.py ─┐
                                               ├─▶ :9877 Remote Script ─▶ Live 12.1 (Windows)
 automation.run ──▶ automation/driver.py ──────┘         (LOM)
                         │
+                        ├─▶ automation/als/ ─▶ copy/edit .als (offline; Live closed)
                         ├─▶ automation/uia.py ─▶ python.exe ─▶ pywinauto ─▶ Live UI (Windows)
                         ├─▶ automation/state.py ─▶ RUNS/ snapshots + .als backup
                         └─▶ automation/analysis ─▶ pyloudnorm/soundfile (WSL, no DAW)
@@ -94,5 +98,5 @@ automation.run ──▶ automation/driver.py ──────┘         (LOM
 - Whether `get_project_path` exists in the installed Remote Script (state.py
   probes for it; `ABLETON_SET_PATH` is the current fallback).
 - The exact split between the MCP server's tool surface and `LomClient`'s — the
-  MCP server has more tools in places (see `AUTOMATION_PLAN.md` §1.3), so the
-  two are not 1:1.
+  MCP server has more tools in places (see `docs/CAPABILITY_MATRIX.md` §1), so
+  the two are not 1:1.

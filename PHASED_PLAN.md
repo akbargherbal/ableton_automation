@@ -1,6 +1,7 @@
 # Phased Plan — Resolve the Unknowns, Unlock the Gates
 
-**Status:** Phase 0, Phase 1, Phase 2 complete — **Gate B2 (write) GO**
+**Status:** Phases 0–5 complete — Gates A, B, B2, C all GO; **product roadmap is
+now `ROADMAP.md`** (this discovery plan is a completed record).
 **Date:** 2026-10-02
 **Purpose:** This is a *discovery / de-risking* plan, not the product plan. It is
 sequenced to (a) answer every open question cheaply, (b) open the gates we can
@@ -15,22 +16,38 @@ facts are in.
 
 ## Resume here (next session)
 
-**Done:** Phases 0, 1, 2. Gates **A, B, B2 all PASSED/GO**.
+**Done:** Phases 0, 1, 2, 3. Gates **A, B, B2, C all PASSED/GO**.
 Committed: `ableton_automation` @ `bb5aa67`; MCP Remote Script @ `a8212fe`.
 
-**Proven end-to-end (Live 12.1 / Windows):** offline `.als` editing exposes
-GUI-only plugin parameters with no GUI Configure. `get_parameter_names` yields the
-declared list; `scripts/als_configure.py` writes `ParameterId` into a slot;
-reopen → LOM-controllable. Verified: Pro-Q 4 `Band 2 Gain` (`parameter_count`
-1→2, `+2.18 dB` → `+15.00 dB`).
+**Phase 3 shipped the `.als` channel as a package:**
+- `automation/als/read.py` — parse/inspect/diff (promoted from `scripts/als_probe.py`).
+- `automation/als/configure.py` — surgical copy-only exposure writer (backup +
+  SHA-256 + atomic replace + re-parse validation), wired to `plugin_profiles`
+  declared-name profiles.
+- `automation/als/snapshot.py` — hashed whole-file backup/restore + guided
+  close-swap-reopen handoff.
+- `driver`: LOM → ALS → UIA ladder — `ChannelUnavailable` carries per-channel
+  availability; `Driver(offline=True)` supports the offline channel without a
+  live socket; `als_info/als_devices/als_configure/als_snapshot/als_restore`.
+- CLI: `automation.run als-info | als-devices | als-configure | als-snapshot |
+  als-restore`. `tests/test_als.py` (32 tests total pass).
 
-**Next: Phase 3 — open the cheap gates.**
-- 3.1 `automation/als/read.py` (promote `scripts/als_probe.py`).
-- 3.2 `automation/als/configure.py` (promote `scripts/als_configure.py`), wired to
-  `plugin_profiles`.
-- 3.3 Extend the actuation ladder to **LOM → ALS → UIA** in `driver`.
-- 3.4 `.als` snapshot/restore (quit Live → swap → reopen).
-- **GATE C:** one GUI-only plugin driven end-to-end with numeric verification.
+**Gate C verified end-to-end (2026-10-02):** `als-configure` on `AASHA.als`
+resolves `Band 2 Gain` → declared index **26** into free slot **8**
+(`exposed 0→1`, 2 bytes changed). Opened the copy in Live via the new UIA
+`open_set` task (Ctrl+O → type path → Enter); Pro-Q 4's LOM `parameter_count`
+went **1 → 2** (`Device On`, `Band 2 Gain`), and `driver.set_param` drove it:
+`+2.18 dB` (0.5363) → `0.75` → read-back **`+15.00 dB`**. The live ladder was
+also confirmed separately (`set_param` on a fresh Pro-Q 4 raises
+`ChannelUnavailable` with `als.available = true`). **Caveat:** a save-changes
+prompt for the untitled current set preceded the Open dialog and was dismissed by
+the operator; `open_set` now aborts on such a prompt unless `discard_unsaved` is
+explicitly set (that auto-discard branch is coded but not yet live-verified).
+
+**ALL DISCOVERY PHASES DONE.** The product plan is `ROADMAP.md` (W1–W7 + the
+trigger-gated SDK future channel), built on `docs/CHANNEL_MATRIX.md`. Next
+implementation session: start at **`ROADMAP.md` W1 (Remote Script extension
+pack)** — it is the highest-leverage work and needs a full Ableton restart.
 
 **Operational facts to remember:**
 - The Remote Script Live **actually loads** is
@@ -48,6 +65,29 @@ reopen → LOM-controllable. Verified: Pro-Q 4 `Band 2 Gain` (`parameter_count`
 
 ## Status log (2026-10-02)
 
+- **Phase 5 done (2026-10-02)** → `ROADMAP.md` (product roadmap: W1 Remote Script
+  extension pack, W2 plugin coverage, W3 ALS hardening, W4 render seam, W5
+  recipes/batch, W6 verification, W7 packaging; SDK as trigger-gated future).
+  `AUTOMATION_PLAN.md` reduced to a superseded stub; `README.md`,
+  `AUTOMATION_AGENT_POLICY.md`, repo `AGENTS.md`, `SYSTEM_MAP.md`,
+  `CAPABILITY_MATRIX.md`, and `build_automation_env.sh` reconciled.
+- **Phase 4.1 + 4.3 done (2026-10-02).** 4.1: `.als` writer verdict = **built
+  bespoke** (`automation/als/`, stdlib-only; rationale in `ALS_FINDINGS.md` §5).
+  4.3: export/render = **guided handoff** (`export_audio` prepare/verify); UIA
+  dialog automation explicitly not pursued.
+- **Phase 4.2 done (2026-10-02)** → `docs/CHANNEL_MATRIX.md` +
+  `automation/channels.py` (`automation.run channels`). Every job mapped to a
+  primary channel and fallbacks; `*` = measured. Backbone for the Phase 5 roadmap.
+- **Phase 3 COMPLETE — GATE C = GO (2026-10-02).** Built the `automation/als/`
+  package (`read`, `configure`, `snapshot`), wired `plugin_profiles` to saved
+  declared-name profiles, added the LOM → ALS → UIA ladder to `driver`
+  (`ChannelUnavailable`, `Driver(offline=True)`), and exposed five CLI commands.
+  Offline proof on `AASHA.als`: `Band 2 Gain` → index 26, slot 8, `exposed 0→1`.
+  Added a UIA `open_set` task (Ctrl+O → path → Enter); reopening the copy made
+  Pro-Q 4 `parameter_count` go **1→2** and `set_param` drove `Band 2 Gain`
+  `+2.18 dB` → `0.75` → **`+15.00 dB` read-back**. Live ladder also confirmed
+  (`set_param` on a fresh Pro-Q 4 raises `ChannelUnavailable`, `als.available`).
+  Tests: `tests/test_als.py` (all 32 pass).
 - **Phase 0.1 done** → `docs/SYSTEM_MAP.md`.
 - **Phase 0.2 done** → `docs/SDK_DECISION.md` (SDK reconfirmed beta-only, 12.4.5).
 - **Phase 0.3 done** → writer mechanism extracted (subagent brief; folded into
@@ -234,22 +274,31 @@ with before/after evidence.
 **Goal:** turn the proven mechanism into a safe, reusable capability and take the
 easy wins it unlocks.
 
-- [ ] **3.1 `automation/als/read.py`** — parse + diff, no writes. Immediately
-  useful: full-fidelity snapshots *without* the DAW open, offline inspection,
-  and a real `state.diff()` to complement the shallow LOM capture.
-- [ ] **3.2 `automation/als/configure.py`** — inject parameter mappings
-  deterministically, with backup + hash + atomic replace. Wire into
-  `plugin_profiles` so GUI-only plugins become drivable.
-- [ ] **3.3 Extend the actuation ladder to LOM → ALS → UIA** in `driver`. Keep
-  `SetValue()` banned; keep numeric read-back verification.
-- [ ] **3.4 Snapshot/restore upgrade** — `.als` gives file-level rollback; define
-  the restore procedure (quit Live → swap → reopen) and test it once.
+- [x] **3.1 `automation/als/read.py`** — parse + diff, no writes. DONE.
+  Full-fidelity snapshots *without* the DAW open, offline inspection, and a real
+  `.als` `diff()` keyed on devices/slots to complement the shallow LOM capture.
+- [x] **3.2 `automation/als/configure.py`** — deterministic exposure injection
+  (`resolve_exposures` maps declared names → free slots + `ParameterId`), with
+  backup + SHA-256 + atomic replace + re-parse validation. Wired into
+  `plugin_profiles` (`declared_parameter_names`, `declared_parameter_index`).
+- [x] **3.3 LOM → ALS → UIA ladder** in `driver`. `set_param` still tries LOM
+  first; a GUI-only device raises `ChannelUnavailable` carrying per-channel
+  availability (`describe_channels`). `Driver(offline=True)` runs the offline
+  channel without a live socket. `SetValue()` stays banned; read-back verified.
+- [x] **3.4 Snapshot/restore** — `automation/als/snapshot.py`: hashed whole-file
+  backup, atomic restore (refuses while Live's socket is open unless forced),
+  and `restore_handoff()` for the quit-Live → swap → reopen model.
 
-**Deliverable:** working `automation/als/` module + driver integration + tests.
+**Deliverable:** `automation/als/` package + driver integration + CLI + tests.
 **Answers:** the *practical* form of Q5 (rollback UX).
 
-**GATE C — proceed if:** one GUI-only plugin can be driven end-to-end with
-numeric verification through the new channel.
+**GATE C — GO (2026-10-02), driven end-to-end.** Offline: `als-configure`
+resolves Pro-Q 4 `Band 2 Gain` to declared index 26 / free slot 8 on a copy of
+`AASHA.als` (`exposed 0→1`). Live: the new UIA `open_set` task reopened the copy;
+LOM reported `parameter_count` 1→2 and `driver.set_param` set `0.75`, read back as
+`+15.00 dB` (was `+2.18 dB`). The `.als` channel is now the first-class offline
+actuator for GUI-only plugins; `open_set` closes the reopen loop. (Phase 2 did
+this by hand; Phase 3 makes it deterministic and agent-runnable.)
 
 ---
 
@@ -257,28 +306,46 @@ numeric verification through the new channel.
 
 **Goal:** close the remaining "how", informed by Phases 1–3.
 
-- [ ] **4.1 Build vs. port vs. adopt** the `.als` writer. Recommendation pending
-  0.3 + 2.5; default is a small bespoke Python module (ffi-free, matches the
-  existing `automation/` package, Windows-testable) rather than adopting a
-  macOS-measured JS library.
-- [ ] **4.2 Channel-selection matrix** — one authoritative table: per job, which
-  channel (LOM / ALS / UIA / handoff / SDK-future) is correct and why.
-- [ ] **4.3 Export/render decision** — UIA dialog automation vs. guided handoff.
-  This is the only route to a deliverable; pick one deliberately (Q9).
+- [x] **4.1 Build vs. port vs. adopt** — **BUILT BESPOKE**, shipped as
+  `automation/als/` (Phase 3). Verdict table + rationale in
+  `docs/ALS_FINDINGS.md` §5. Chosen because it is stdlib-only (`gzip` +
+  `xml.etree`), adds no runtime/dependency, is Windows-testable, and matches the
+  `automation/` package; the alternatives are a large MCP product (live-maestro),
+  macOS-measured JS that does not expose params (kevinkirsten), or read-only
+  (dawtool). Proven by Gates B2 and C — no revisit needed.
+- [x] **4.2 Channel-selection matrix** — DONE → `docs/CHANNEL_MATRIX.md`,
+  backed by `automation/channels.py` (machine-readable registry + `validate()`),
+  CLI `automation.run channels [--job/--channel/--json]`, tests
+  `tests/test_channels.py`. 43 jobs across 8 areas; 21 measured (`*`).
+  Rules of thumb: LOM first; ALS before UIA for GUI-only params; handoff is a
+  valid outcome; extend the Remote Script before clicking; verify numerically.
+- [x] **4.3 Export/render decision** — **GUIDED HANDOFF** (per Q9). There is no
+  render API in the LOM or `.als`; the Export dialog is modal and
+  version-sensitive, so it is a first-class handoff, not an automation target.
+  Reference: `automation/recipes/export_audio.py` (`stage=prepare` emits the exact
+  dialog settings via `handoff.export_audio_handoff`; `stage=verify` waits for the
+  file and measures it) + `automation.run guide`. `automation.run keys ^+r` is an
+  optional accelerator; unattended export stays disallowed. UIA automation of the
+  dialog is explicitly **not** pursued.
 
 ---
 
 ## Phase 5 — Write the product roadmap (the original ask)
 
 **Goal:** now that facts are known, rewrite the real implementation plan.
+**DONE (2026-10-02)** → `ROADMAP.md` (product roadmap, W1–W7 + SDK trigger).
 
-- [ ] Replace `AUTOMATION_PLAN.md`'s stale sections with a roadmap built on the
-  channel-selection matrix, targeting the confirmed objective (Q1).
-- [ ] Re-baseline the phases against 12.1 (discard any 12.4.5-derived findings
-  that do not hold).
-- [ ] Fold in the SDK as a *future optional channel* with an explicit upgrade
-  trigger, not a dependency.
-- [ ] Reconcile `README.md`, `AUTOMATION_AGENT_POLICY.md`, `AGENTS.md`.
+- [x] Replaced `AUTOMATION_PLAN.md`'s stale sections with **`ROADMAP.md`**, built
+  on the channel-selection matrix and targeting the confirmed general objective
+  (Q1). `AUTOMATION_PLAN.md` is now a superseded stub (full text in git history).
+- [x] Re-baselined against **Live 12.1** (Windows); no 12.4.5-derived finding is
+  load-bearing. Stale claims (0 plugins, Arrangement incomplete) removed.
+- [x] SDK folded in as a **trigger-gated future channel** (`ROADMAP.md` W-future):
+  activation requires Live 12.4.5+ **and** Suite **and** Centercode; not a
+  dependency, and the upgrade would not unlock GUI-only params.
+- [x] Reconciled `README.md`, `AUTOMATION_AGENT_POLICY.md` (→ runtime `AGENTS.md`),
+  and the repo `AGENTS.md`; `build_automation_env.sh` whitelists
+  `docs/CHANNEL_MATRIX.md`.
 
 ---
 
@@ -330,6 +397,7 @@ Procedure (all reversible):
 
 ## Done so far (updated 2026-10-02)
 
-**Phases 0, 1 and 2 complete; Gates A, B, B2 PASSED/GO.** Committed in
-`ableton_automation` @ `bb5aa67` and the MCP Remote Script @ `a8212fe`.
-Next actions are in **Resume here** at the top of this file (Phase 3).
+**Phases 0–5 complete; Gates A, B, B2, C PASSED/GO.** Phases 0–3 committed in
+`ableton_automation` @ `bb5aa67` and the MCP Remote Script @ `a8212fe`; Phases 4–5
+(4.1/4.2/4.3 + roadmap) are the current uncommitted work. Next actions are in
+**`ROADMAP.md`** (W1 onward); this file is now a completed record.

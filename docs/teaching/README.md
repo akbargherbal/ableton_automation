@@ -2,8 +2,8 @@
 
 These files belong to the project's **previous** teaching/tutoring orientation
 (the "Ableton Live 12 AI Tutor & UI Grounding Suite" and the "Mastering Suno AI
-Music" course). The project pivoted to **automation** — see `AUTOMATION_PLAN.md`,
-`docs/CAPABILITY_MATRIX.md`, and `AUTOMATION_AGENT_POLICY.md` at the repo root.
+Music" course). The project pivoted to **automation** — see `ROADMAP.md`,
+`docs/CHANNEL_MATRIX.md`, and `AUTOMATION_AGENT_POLICY.md` at the repo root.
 
 They are kept for reference because the click-automation engine they describe is
 still the UIA layer used by the automation driver. They are no longer the

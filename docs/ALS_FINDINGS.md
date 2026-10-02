@@ -2,6 +2,7 @@
 
 **Verified:** 2026-10-02 on real Live 12.1 sets, plus the community writer source.
 **Phase 1 deliverable** of `PHASED_PLAN.md`; answers Q2 (read half) and Q7.
+**Phase 3 promoted the forensics into the `automation/als/` package** — see §9.
 
 > **Gate B (read): PASSED.** Live 12.1 produces exactly the parameter-slot array
 > the exposure mechanism depends on.
@@ -162,3 +163,49 @@ file. If `get_parameter_names` works on 12.1 this becomes unnecessary.
 - Parse: Python stdlib only (`gzip`, `xml.etree.ElementTree`); no writes.
 - Writer source: `romanstark/live-maestro` `als/write.py`, `als/read.py`,
   `docs/limits.md` (fetched and quoted; measured by them on 12.4.x).
+
+## 9. Phase 3 — the `automation/als/` package
+
+The Phase 1/2 scripts are now thin CLIs over reusable modules:
+
+| Module | Role |
+|---|---|
+| `automation/als/read.py` | `SetInfo` / `PluginDevice` / `ParameterSlot` model, `devices()`, `read()`, `diff()`, `file_info()`. Read-only. |
+| `automation/als/configure.py` | `resolve_exposures()` (declared name → free slot + `ParameterId`), `write()` (surgical, copy-only, dry-run default, backup + SHA-256 + atomic replace + re-parse validation). |
+| `automation/als/snapshot.py` | `snapshot()` / `restore()` (hashed, atomic; refuses while Live is running unless forced) + `restore_handoff()`. |
+
+Wiring and integration:
+
+- **`plugin_profiles`** loads the saved declared-name profile
+  (`profiles/als/<slug>_parameter_names.json`, e.g. `Pro-Q-4_parameter_names.json`)
+  and resolves a friendly name to its declared index — the value a slot's
+  `ParameterId` must hold. `describe_channels()` reports the LOM/ALS/UIA ladder.
+- **`driver`** gained `als_info`, `als_devices`, `als_configure`,
+  `als_snapshot`, `als_restore`, and `Driver(offline=True)` so the offline channel
+  needs no live socket. `set_param` on a GUI-only device now raises
+  `ChannelUnavailable` carrying the ladder instead of a bare `NotImplementedError`.
+- **CLI**: `automation.run als-info | als-devices | als-configure | als-snapshot |
+  als-restore`.
+
+Gate C proof (2026-10-02): on a copy of `AASHA.als`, requesting `Band 2 Gain`
+produced `{slot: 8, parameter_id: 26, visual_index: 0}`, `exposed 0→1`, exactly
+2 bytes changed — identical to the Phase 2 manual proof, now deterministic and
+GUI-free. The copy was then reopened in Live via the new UIA `open_set` task
+(Ctrl+O → type path → Enter): Pro-Q 4's LOM `parameter_count` went **1 → 2**
+(`Device On`, `Band 2 Gain`) and `driver.set_param(0, 0, "Band 2 Gain", 0.75)`
+read back **`+15.00 dB`** (from `+2.18 dB`). The original file's SHA-256 is
+recorded and untouched.
+
+**Honest caveat:** before the Open dialog appeared, Live asked to save the
+current (untitled) set; the operator clicked "No". The task submitted the path,
+but did not itself dismiss that prompt — its title did not contain "save", so the
+original title-match missed it. The task now detects any Ableton-owned modal
+dialog by process id and aborts on a save prompt unless `discard_unsaved=True`.
+That discard branch is coded but not yet live-verified.
+
+`automation.uia.open_set(path)` wraps the reopen step, so the whole LOM → ALS →
+UIA round trip is agent-runnable: expose offline, reopen via UIA, drive via LOM.
+
+**Boundary:** the channel is still offline and expose-only. It makes a parameter
+LOM-drivable after reopen; it does not set values, render, or touch the opaque
+`ProcessorState`. Values are set afterward through LOM (`driver.set_param`).

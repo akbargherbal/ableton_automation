@@ -5,11 +5,15 @@
 This is the Phase 0 "reality sync" deliverable from `AUTOMATION_PLAN.md`; it
 supersedes the stale claims in `README.md` (see "Corrected claims" below).
 
-Three layers exist. Prefer them in this order: **LOM → UIA → human**.
+Four layers exist. Prefer them in this order: **LOM → ALS → UIA → human**.
+For the per-job decision table (which channel for which outcome, and why), see
+`docs/CHANNEL_MATRIX.md` (queryable via `automation.run channels`). This document
+is the capability inventory; that one is the routing authority.
 
 | Layer | Runs where | Mechanism | Use for |
 |---|---|---|---|
 | LOM | WSL `python3` | TCP `localhost:9877` to the Remote Script | Everything the Live Object Model exposes |
+| ALS | WSL `python3`, **Live closed** | `automation/als/` — edit a copy of the `.als` | Offline inspection/snapshots; **exposing** GUI-only plugin params so the LOM can drive them after reopen |
 | UIA | Windows `python.exe` | pywinauto, `scripts/automate_ableton_task.py` | Menus, dialogs, browser drag-drop, plugin GUIs, anything with no LOM surface |
 | Human | — | Level-4 instructions | Genuine gaps |
 
@@ -36,6 +40,19 @@ Read and/or write through `automation.lom.LomClient`:
 Verified live: `set_tempo` 120→124→120 with snapshot/diff/verify round-trip;
 device load + parameter dump + device delete; session track create/delete.
 
+## 1b. ALS capabilities (offline; Live closed for writes)
+
+| Command | Purpose |
+|---|---|
+| `automation.run als-info --path X.als` | Container metadata (version, build, sizes) |
+| `automation.run als-devices --path X.als [--json]` | Plugin devices + per-slot exposure |
+| `automation.run als-configure --source X.als --out Y.als --request NAME [--apply]` | Expose a GUI-only parameter by editing a copy |
+| `automation.run als-snapshot --path X.als [--dest D]` | SHA-256 whole-file backup |
+| `automation.run als-restore --snapshot S --target X.als [--apply]` | Atomic restore (refuses while Live runs unless `--force`) |
+
+Reads are zero-risk and need no DAW. Writes are dry-run by default, copy-only, and
+re-parse-validated. See `docs/ALS_FINDINGS.md`.
+
 ## 2. Device parameter control — the important finding
 
 A device either exposes all its parameters to LOM or only `Device On`. The live
@@ -60,8 +77,16 @@ Measured on 2026-10-02:
   LOM; parameter names are descriptive and fuzzy-resolvable
   (e.g. "output level" → `MAX: Output Level`).
 - A plugin exposing only 1 param is **not** LOM-drivable. `driver.set_param`
-  raises `NotImplementedError` rather than silently failing. Those need the
-  plugin GUI via UIA, or preset loading.
+  raises `ChannelUnavailable` (subclass of `NotImplementedError`) carrying the
+  LOM → ALS → UIA ladder rather than silently failing.
+- **Unlock path for GUI-only plugins (verified Gate C, 2026-10-02):** use the
+  offline `.als` channel. `driver.als_configure(source, output, ["Band 2 Gain"])`
+  resolves the name against the plugin's declared parameter list and fills three
+  fields (`ParameterName`/`ParameterId`/`VisualIndex`) on a free slot of a *copy*;
+  reopen the copy and the parameter is a normal LOM parameter. See
+  `docs/ALS_FINDINGS.md` §9 and `automation/als/`.
+- Live plugin-GUI automation via UIA remains the fallback when a set cannot be
+  closed/reopened; preset loading is the coarse alternative.
 - The monolith `Ozone 12` (whole chain) is treated as GUI/preset-driven; use the
   individual Ozone **component** plugins for parameter automation.
 - Ozone components are *not uniform*: Maximizer/Vintage Limiter are LOM-capable,
@@ -91,6 +116,13 @@ Proven write primitives (CheckBox / Slider / ComboBox) via
 `scripts/automate_ableton_task.py`; generic `--control <automation_id>` path.
 New: `--keys "<sequence>"` sends a raw pywinauto keystroke to the window, for
 menu commands with no `automation_id`.
+New: `--task open_set --file <abs path>` (wrapped by `automation.uia.open_set`)
+opens a Live set via Ctrl+O → filename field (`automation_id 1148`) → Enter.
+If Ableton asks to save the current set it **aborts by default** (never silently
+discards); pass `--discard-unsaved` / `discard_unsaved=True` to click Don't Save.
+On the first Gate C run the operator dismissed that prompt manually, so the
+discard branch is coded but not yet live-verified. This closes the `.als`
+channel's reopen loop: `als-configure` offline → `open_set` → LOM drive/verify.
 
 Known-good shortcuts (from `~/Jupyter_Notebooks/OpenCode/ableton-md-manual`):
 
@@ -114,7 +146,7 @@ Known-good shortcuts (from `~/Jupyter_Notebooks/OpenCode/ableton-md-manual`):
 | **Scene management** | Post claims it; server has none | Extend Remote Script |
 | **Get selected track/clip/view** | Driver context awareness | Extend Remote Script |
 | **Time signature, metronome, record** | Session control | Extend Remote Script |
-| **Plugin GUI-only params** (Pro-Q 4, Pro-C 3, Ozone EQ/Dynamics) | Can't set params via LOM | Plugin-window UIA (not yet surveyed) or presets |
+| **Plugin GUI-only params** (Pro-Q 4, Pro-C 3, Ozone EQ/Dynamics) | Can't set params via LOM directly | **Solved offline**: `als-configure` exposes them → LOM after reopen (Gate C). UIA/presets remain live fallbacks. |
 | **Project file path** | `.als` backup | Extend Remote Script with `get_project_path`, or `ABLETON_SET_PATH` |
 
 ## 6. Corrected claims from the old README/policy

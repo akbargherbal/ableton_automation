@@ -12,18 +12,26 @@ point. Act, verify, report.
 
 Work top-down; stop at the first layer that can do the job.
 
+The full per-job table is `docs/CHANNEL_MATRIX.md`; query it with
+`python3 -m automation.run channels`.
+
 1. **LOM** (`automation.run` / `automation.lom`) — primary. Deterministic,
    verifiable, silent. Use for tempo, tracks, clips/notes, arrangement clips,
-   cue points, cue/device loading, and any device whose parameters are exposed
-   (see step 3).
-2. **UIA** (`automation.run uia` / `automation.run keys`) — menus, dialogs,
+   cue points, cue/device loading, and any device whose parameters are exposed.
+2. **ALS** (`automation.run als-*`) — offline `.als` channel. Use to *expose* a
+   GUI-only plugin parameter (edits a **copy**; Live must not have it open),
+   whole-file snapshot/restore, and offline inspection. The exposed param is
+   normal LOM after the copy is reopened (`automation.run open-set --file X.als`,
+   i.e. `automation.uia.open_set`; aborts on a save prompt unless
+   `--discard-unsaved`).
+3. **UIA** (`automation.run uia` / `automation.run keys`) — menus, dialogs,
    browser drag-drop, plugin GUIs, anything with no LOM surface. This layer
    moves the real UI; it is slower and version-sensitive, so it is the fallback,
    not the default.
-3. **Guided handoff** — do everything up to the hard step, then give the user
+4. **Guided handoff** — do everything up to the hard step, then give the user
    precise instructions and resume afterwards. This is a *success*, not a
    failure. See "Partial Automation" below.
-4. **Abort** — only if even a handoff is unsafe or impossible.
+5. **Abort** — only if even a handoff is unsafe or impossible.
 
 Never guess a click coordinate. Never call `RangeValuePattern.SetValue()` on a
 Slider — it is confirmed to crash Ableton.
@@ -106,8 +114,10 @@ Rules:
   machine at `~/Jupyter_Notebooks/OpenCode/ableton-md-manual/manual/` and
   `~/Jupyter_Notebooks/OpenCode/ozone/{Ozone12-Manual,FabFilter-Help}/`.
   Do not use `live12-manual-en.pdf` (superseded by the chaptered markdown).
-- **`docs/CAPABILITY_MATRIX.md`** — the authoritative map of what is LOM vs UIA
-  vs gap, and which plugins expose parameters. Consult before assuming.
+- **`docs/CAPABILITY_MATRIX.md`** — the authoritative map of what is LOM vs ALS
+  vs UIA vs gap, and which plugins expose parameters. Consult before assuming.
+- **`docs/CHANNEL_MATRIX.md`** — per-job routing (which channel for which
+  outcome). Query: `python3 -m automation.run channels`.
 
 ## Plugin Control Modes
 
@@ -117,21 +127,28 @@ parameter count — `automation.plugin_profiles.classify` does this.
 - **>1 parameter → LOM.** `driver.set_param(track, device, "output level", 0.8)`.
   Names are fuzzy-matched (`find_param`), so "output level" resolves to
   `MAX: Output Level`.
-- **1 parameter → GUI-only.** `set_param` raises `NotImplementedError`. Do not
-  try to force it. Options: drive the plugin GUI via UIA (not yet surveyed), or
-  load a preset. Known GUI-only: Pro-Q 4, Pro-C 3, Ozone 12 Equalizer,
-  Ozone 12 Dynamics, and the monolithic Ozone 12.
+- **1 parameter → GUI-only.** `set_param` raises `ChannelUnavailable` carrying
+  the ladder. Unlock it via **ALS**: `als-configure` on a copy (declared names →
+  index from the plugin's `get_parameter_names`), reopen the copy, then drive it
+  as normal LOM. Proven end-to-end (Gate C). Known GUI-only: Pro-Q 4, Pro-C 3,
+  Ozone 12 Equalizer, Ozone 12 Dynamics, and the monolithic Ozone 12. Driving the
+  plugin GUI via UIA is an unexplored fallback; prefer ALS.
 
 Favor **component** Ozone plugins over the monolith for parameter automation.
 
 ## Known Gaps (see CAPABILITY_MATRIX §5)
 
-Export/render, Save/Save As, Freeze/Flatten, Undo, scenes, selected-track, time
-signature have no LOM command today. Menu shortcuts exist for several
-(Export `^+r`, Save `^s`, Save As `^+s`, Undo `^z`) and are reachable via
-`automation.run keys`; dialog handling is not yet built. Close LOM gaps by
-extending the Remote Script (`~/ableton-mcp-extended`), not by adding click
-coordinates.
+No LOM command exists today for **scenes, selection/context, time signature,
+metronome, record, mute/solo setters, stop-all, or project path** — see
+`docs/CHANNEL_MATRIX.md` (`requires: Remote Script extension`) and `ROADMAP.md`
+W1. Close them by extending the Remote Script (`~/ableton-mcp-extended`), never
+by adding click coordinates.
+
+**Export/render is a deliberate guided handoff**, not a gap: there is no render
+API, so `export_audio` prepares the dialog and verifies the written file.
+**Save/Save As, Freeze/Flatten, Undo, Collect All** also have no LOM command;
+their menu shortcuts (`^+r`, `^s`, `^+s`, `^z`) are reachable via
+`automation.run keys`. Do not trigger Export unattended.
 
 ## Ground Truth First
 

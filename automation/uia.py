@@ -164,6 +164,30 @@ def send_keys(keys: str, *, live: bool = False, timeout: float = 40.0) -> UiaRes
     return run_automation(args, timeout=timeout)
 
 
+def open_set(file_path: str, *, live: bool = False,
+             discard_unsaved: bool = False,
+             timeout: float = 150.0) -> UiaResult:
+    """Open a Live set by absolute Windows path via the Open dialog.
+
+    Used by the `.als` channel to reopen a configured copy for LOM
+    verification; requires the Windows UI layer. If Ableton prompts to save
+    the current set, the task aborts unless `discard_unsaved=True` (never
+    silently discards a user's work).
+    """
+    args: list[Any] = ["--task", "open_set", "--file", file_path]
+    if discard_unsaved:
+        args.append("--discard-unsaved")
+    if live:
+        args.append("--live")
+    result = run_automation(args, timeout=timeout)
+    if not result.ok:
+        raise UiaError(
+            f"open_set failed (exit {result.returncode}): "
+            f"{result.stderr.strip() or result.stdout.strip()[-400:]}"
+        )
+    return result
+
+
 def run_task(task: str, *, tracks: Sequence[int] = (), seconds: float | None = None,
              bpm: float | None = None, live: bool = False,
              timeout: float = 240.0) -> UiaResult:

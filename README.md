@@ -4,7 +4,7 @@ An LOM-first automation system for **Ableton Live 12**. The user states an
 outcome; the agent produces it, verifies it with numbers, and reports what
 changed. This repo previously hosted two teaching/tutoring courses — those are
 archived under `docs/teaching/` and `SUNO_MASTERING_AGENT_POLICY.md`. See
-`AUTOMATION_PLAN.md` for the pivot.
+`ROADMAP.md` for the plan and `docs/CHANNEL_MATRIX.md` for per-job channel routing.
 
 ---
 
@@ -34,6 +34,7 @@ menus, dialogs, browser drag-drop, and plugin GUIs that LOM cannot touch.
                  ┌─────────────────────────────────────────┐
                  │        automation.driver.Driver           │
                  │  • lom      (TCP :9877 → Remote Script)   │
+                 │  • als      (offline .als: expose/restore) │
                  │  • uia      (python.exe → pywinauto)       │
                  │  • state    (snapshot / diff / backup)     │
                  │  • verify   (numeric post-conditions)      │
@@ -45,10 +46,16 @@ menus, dialogs, browser drag-drop, and plugin GUIs that LOM cannot touch.
 
 - **LOM** — `automation.lom.LomClient`, a dependency-free TCP client for the
   `AbletonMCP` Remote Script. Primary actuator.
+- **ALS** — `automation/als/` edits a *copy* of the `.als` offline (Live closed)
+  to expose GUI-only plugin parameters, then LOM drives them after reopen. Also
+  whole-file snapshot/restore. The third rung: LOM → **ALS** → UIA → handoff.
 - **UIA** — `automation.uia` shells out to `scripts/automate_ableton_task.py`
   (Windows `python.exe`). Fallback/reach.
 - **Analysis** — `automation.analysis.measure` (LUFS / true-peak / spectrum),
   pure Python. Closes the verification loop on rendered audio.
+
+Per-job routing lives in `docs/CHANNEL_MATRIX.md`; query it with
+`python3 -m automation.run channels`.
 
 ## Partial automation (guided handoff)
 
@@ -90,6 +97,8 @@ python3 -m automation.run set-tempo --bpm 124 --dry-run
 python3 -m automation.run set-param --track 0 --device 0 --name "output level" --value 0.8
 python3 -m automation.run analyze --file out.wav --target-lufs -14
 python3 -m automation.run batch --manifest tracks.csv --recipe set_tempo --dry-run
+python3 -m automation.run channels                # per-job channel matrix
+python3 -m automation.run als-info --path X.als   # offline .als inspection
 python3 -m automation.run tasks                   # recipes + UIA tasks
 ```
 
@@ -119,40 +128,56 @@ count decides (`automation.plugin_profiles.classify`). Measured 2026-10-02:
 | Ozone 12 Maximizer | 20 | ✅ |
 | Ozone 12 Vintage Limiter | 13 | ✅ |
 | FabFilter Pro-L 2 | 17 | ✅ |
-| Ozone 12 Equalizer / Dynamics | 1 | ❌ GUI-only |
-| FabFilter Pro-Q 4 / Pro-C 3 | 1 | ❌ GUI-only |
+| Ozone 12 Equalizer / Dynamics | 1 | 🔓 ALS-unlockable |
+| FabFilter Pro-Q 4 / Pro-C 3 | 1 | 🔓 ALS-unlockable |
 
-GUI-only plugins raise a clear error rather than silently failing; drive them via
-the plugin GUI or presets. Favor Ozone **component** plugins over the monolith.
+GUI-only plugins raise `ChannelUnavailable` carrying the ladder rather than
+silently failing. Unlock a parameter offline with `als-configure` (edits a
+**copy**), reopen it with `python3 -m automation.run open-set --file X.als`, then
+drive it normally — LOM `set_param` with read-back. Gate C set Pro-Q 4
+`Band 2 Gain` `+2.18 dB → 0.75 → +15.00 dB` without the plugin GUI. Favor Ozone
+**component** plugins over the monolith.
 Full map: `docs/CAPABILITY_MATRIX.md`.
 
 ## Known gaps
 
-No LOM command exists for **Export/render, Save/Save As, Freeze/Flatten, Undo,
-scenes, selected-track, or time signature**. Menu shortcuts are reachable via
-`python3 -m automation.run keys` (`^+r` export, `^s` save, `^+s` save-as, `^z`
-undo); the Export dialog's follow-up steps are not yet automated. Close LOM gaps
-by extending the Remote Script (`~/ableton-mcp-extended`), not by adding click
-coordinates.
+The open LOM gaps are tracked per-job in `docs/CHANNEL_MATRIX.md` (search
+`requires: Remote Script extension`): **scenes, selection/context, time
+signature, metronome, record, mute/solo setters, stop-all, project path**. They
+are closed by extending the Remote Script (`~/ableton-mcp-extended`) — see
+`ROADMAP.md` W1 — never by adding click coordinates.
+
+**Export/render is a deliberate guided handoff** (no render API exists; the dialog
+is modal). The `export_audio` recipe prepares the dialog, then verifies the file
+it writes. **Save/Save As, Freeze/Flatten, Undo, Collect All** have no LOM command
+either; menu shortcuts are reachable via `python3 -m automation.run keys` (`^+r`
+export, `^s` save, `^+s` save-as, `^z` undo).
 
 ## Repository structure
 
 ```
-AUTOMATION_PLAN.md            # pivot plan + phase roadmap
+ROADMAP.md                    # product roadmap (current plan)
+PHASED_PLAN.md                # discovery/architecture plan (complete)
+AUTOMATION_PLAN.md            # superseded stub -> ROADMAP.md
 AUTOMATION_AGENT_POLICY.md    # runtime policy (shipped as AGENTS.md)
 build_automation_env.sh       # assembles the automation runtime folder
 automation/                   # the driver package
   lom.py uia.py state.py verify.py lock.py log.py driver.py run.py probe.py batch.py
+  channels.py                 # channel-selection matrix (LOM/ALS/UIA/handoff/...)
+  als/                        # offline .als channel: read / configure / snapshot
   analysis/measure.py         # LUFS / true-peak / spectrum
   recipes/                    # named, parameterized tasks
-  profiles/probed/            # captured device parameter inventories
+  profiles/                   # probed device inventories + declared-name profiles
 scripts/                      # Windows UIA layer + catalog
   automate_ableton_task.py    # click/keys primitives (Windows python.exe)
   dump_ableton_pywinauto.py   # read-only UIA tree walker
   keyboard_shortcuts.py
   dumps/control_catalog.json
 docs/
-  CAPABILITY_MATRIX.md        # LOM vs UIA vs gap (read this before assuming)
+  CHANNEL_MATRIX.md           # per-job routing (query: automation.run channels)
+  CAPABILITY_MATRIX.md        # LOM vs ALS vs UIA vs gap (read before assuming)
+  ALS_FINDINGS.md             # the offline .als channel
+  SYSTEM_MAP.md               # what runs where
   opencode-ableton-mcp-setup.md
   teaching/                   # archived courses
 tests/                        # pytest, pure-Python

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from . import plugins as plugins_mod
 from . import state as state_mod
@@ -23,13 +23,26 @@ from .lom import LomClient
 RUNS_DIR_NAME = "RUNS"
 
 
+class ChannelUnavailable(NotImplementedError):
+    """No channel on the LOM -> ALS -> UIA ladder can perform an action.
+
+    Carries the per-channel availability so callers (CLI, agent) can present the
+    deterministic offline route (`.als` configure + reopen) or the live GUI
+    route (UIA) instead of a bare failure.
+    """
+
+    def __init__(self, message: str, channels: dict | None = None):
+        super().__init__(message)
+        self.channels = channels or {}
+
+
 class Driver:
     """One automation run against one Ableton instance."""
 
     def __init__(self, run_dir: Path | str | None = None, *, name: str = "run",
                  dry_run: bool = False, use_lock: bool = True,
                  snapshot_on_enter: bool = True, interactive: bool = False,
-                 unattended: bool = False) -> None:
+                 unattended: bool = False, offline: bool = False) -> None:
         self.repo = uia.repo_root()
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self.run_dir = Path(run_dir) if run_dir else self.repo / RUNS_DIR_NAME / f"{stamp}_{name}"
@@ -39,6 +52,7 @@ class Driver:
         self.snapshot_on_enter = snapshot_on_enter
         self.interactive = interactive
         self.unattended = unattended
+        self.offline = offline
         self.log = RunLog(self.run_dir, run_id=f"{stamp}_{name}")
         self.client = LomClient()
         self._lock = RunLock(self.repo / RUNS_DIR_NAME / ".automation.lock")
@@ -48,10 +62,11 @@ class Driver:
     def __enter__(self) -> "Driver":
         if self.use_lock:
             self._lock.__enter__()
-        self.client.connect()
+        if not self.offline:
+            self.client.connect()
         self.log.event("run_start", name=self.name, dry_run=self.dry_run,
-                       run_dir=str(self.run_dir))
-        if self.snapshot_on_enter:
+                       offline=self.offline, run_dir=str(self.run_dir))
+        if self.snapshot_on_enter and not self.offline:
             self.before = self.snapshot("before")
         return self
 
@@ -121,16 +136,20 @@ class Driver:
         from . import plugin_profiles
         params = self.client.device_parameters(track_index, device_index,
                                                chain_index=chain_index)
-        mode = plugin_profiles.classify(params.get("device_name", ""),
-                                        params.get("parameter_count"))
+        device_name = params.get("device_name", "")
+        mode = plugin_profiles.classify(device_name, params.get("parameter_count"))
         if mode == "gui":
             available = ", ".join(plugin_profiles.parameter_names(params)[:8])
-            raise NotImplementedError(
-                f"Device {params.get('device_name')!r} on track {track_index} is "
-                f"GUI-only (exposes {params.get('parameter_count')} LOM param(s): "
-                f"{available}). It cannot be driven by set_device_parameter. Use "
-                "the plugin GUI (UIA) or preset loading instead -- see "
-                "docs/CAPABILITY_MATRIX.md."
+            channels = plugin_profiles.describe_channels(
+                device_name, params.get("parameter_count"))
+            raise ChannelUnavailable(
+                f"Device {device_name!r} on track {track_index} is GUI-only "
+                f"(exposes {params.get('parameter_count')} LOM param(s): "
+                f"{available}). LOM set_device_parameter cannot drive it. "
+                "Next channel: '.als' expose offline then reopen (driver."
+                "als_configure) or plugin-GUI via UIA (driver.uia_control). "
+                "See docs/CAPABILITY_MATRIX.md.",
+                channels=channels,
             )
         if not self._may_proceed(desc, "lom"):
             return None
@@ -220,6 +239,82 @@ class Driver:
 
     def list_devices(self, track_index: int) -> list[dict]:
         return self.client.track_info(track_index).get("devices", [])
+
+    # -- ALS channel (offline; LOM -> ALS -> UIA ladder) ---------------------
+
+    def als_info(self, path: str) -> dict:
+        from .als import read as als_read
+        info = als_read.file_info(path)
+        self.log.event("als_info", path=path, **{k: info[k] for k in
+                       ("major_version", "minor_version", "creator")})
+        return info
+
+    def als_devices(self, path: str) -> list[dict]:
+        from .als import read as als_read
+        devs = [d.as_dict() for d in als_read.devices(path)]
+        self.log.event("als_devices", path=path, device_count=len(devs))
+        return devs
+
+    def als_configure(self, source: str, output: str, requested: list[str], *,
+                      device: int = 0, apply: bool = False, backup: bool = True,
+                      overwrite: bool = False,
+                      declared_names: list[str] | None = None):
+        """Expose GUI-only plugin parameters by editing a copy of `source`.
+
+        Resolves the friendly `requested` names against the plugin's declared
+        parameter list (`plugin_profiles`, saved from `get_parameter_names`),
+        then rewrites exactly three fields per slot. Offline: the set must be
+        closed, and the effect appears on reopen. Dry-run unless `apply=True`.
+        """
+        from . import plugin_profiles as pp
+        from .als import configure as als_configure, read as als_read
+        desc = (f"als configure {source} -> {output} "
+                f"[device {device}] {requested}")
+        self.log.event("action_start", label=desc, layer="als")
+        src_dev = als_read.device(source, device)
+        if src_dev is None:
+            from .als.configure import AlsConfigError
+            raise AlsConfigError(f"device {device} not found in {source}")
+        if declared_names is None:
+            declared_names = pp.declared_parameter_names(src_dev.name)
+        if not declared_names:
+            from .als.configure import AlsConfigError
+            raise AlsConfigError(
+                f"no declared-parameter profile for {src_dev.name!r}. Run "
+                f"get_parameter_names on the running plugin and save it to "
+                f"{pp.declared_profile_path(src_dev.name)}"
+            )
+        exposures = als_configure.resolve_exposures(src_dev, declared_names,
+                                                    requested)
+        result = als_configure.write(source, output, exposures, device=device,
+                                     apply=apply, backup=backup,
+                                     overwrite=overwrite)
+        self.log.event("action_result", label=desc, layer="als",
+                       result="success", applied=result.applied,
+                       exposed_before=result.exposed_before,
+                       exposed_after=result.exposed_after,
+                       sha256_source=result.sha256_source,
+                       sha256_output=result.sha256_output)
+        return result
+
+    def als_snapshot(self, path: str, dest_dir: str | None = None,
+                     label: str = "snapshot"):
+        from .als import snapshot as als_snapshot
+        snap = als_snapshot.snapshot(path, dest_dir, label=label)
+        self.log.event("als_snapshot", original=snap.original,
+                       snapshot=snap.snapshot, sha256=snap.sha256,
+                       size=snap.size)
+        return snap
+
+    def als_restore(self, snapshot_path: str, target: str, *,
+                    apply: bool = False, force: bool = False, backup: bool = True):
+        from .als import snapshot as als_snapshot
+        result = als_snapshot.restore(snapshot_path, target, apply=apply,
+                                      force=force, backup=backup)
+        self.log.event("als_restore", snapshot=result.snapshot,
+                       target=result.target, applied=result.applied,
+                       backup=result.backup, sha256_target=result.sha256_target)
+        return result
 
     # -- UIA fallback/reach --------------------------------------------------
 

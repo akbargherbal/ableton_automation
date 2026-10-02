@@ -10,6 +10,13 @@
     python3 -m automation.run recipe --name set_tempo --set bpm=124 [--dry-run]
     python3 -m automation.run uia --control ID --action set --value V [--live]
     python3 -m automation.run analyze --file OUT.wav [--target-lufs -14]
+    python3 -m automation.run als-info --path SET.als
+    python3 -m automation.run als-devices --path SET.als [--json]
+    python3 -m automation.run als-configure --source SET.als --out OUT.als --request NAME [--apply]
+    python3 -m automation.run als-snapshot --path SET.als [--dest DIR]
+    python3 -m automation.run als-restore --snapshot S.als --target SET.als [--apply]
+    python3 -m automation.run channels [--job ID] [--channel C] [--json]
+    python3 -m automation.run open-set --file X.als [--discard-unsaved]
     python3 -m automation.run tasks
 
 Track/device indices are 0-based throughout (matching --list-tracks and the
@@ -23,6 +30,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import channels as channels_mod
 from . import plugins as plugins_mod
 from . import recipes as recipes_pkg
 from . import uia
@@ -101,6 +109,62 @@ def cmd_probe_plugin(args) -> int:
     return 0
 
 
+def cmd_als_info(args) -> int:
+    from .als import read as als_read
+    _print(als_read.file_info(args.path))
+    return 0
+
+
+def cmd_als_devices(args) -> int:
+    from .als import read as als_read
+    devs = als_read.devices(args.path)
+    if args.json:
+        _print([d.as_dict() for d in devs])
+        return 0
+    print(f"{args.path}: {len(devs)} plugin device(s)")
+    for i, d in enumerate(devs):
+        print(f"  [{i}] {d.name!r}  slots={d.slot_count} exposed={d.exposed_count}")
+        if d.exposed_names:
+            print(f"      exposed: {', '.join(d.exposed_names[:8])}")
+    return 0
+
+
+def cmd_als_configure(args) -> int:
+    declared = None
+    if args.declared:
+        data = json.loads(Path(args.declared).read_text(encoding="utf-8"))
+        declared = data.get("names") if isinstance(data, dict) else data
+    with Driver(name="als_configure", offline=True,
+                snapshot_on_enter=False) as d:
+        result = d.als_configure(args.source, args.out, args.request or [],
+                                 device=args.device, apply=args.apply,
+                                 backup=not args.no_backup,
+                                 overwrite=args.overwrite,
+                                 declared_names=declared)
+    _print(result.as_dict())
+    if not result.applied:
+        print("[dry-run] pass --apply to write the output copy", file=sys.stderr)
+    return 0
+
+
+def cmd_als_snapshot(args) -> int:
+    from .als import snapshot as als_snapshot
+    snap = als_snapshot.snapshot(args.path, args.dest, label=args.label)
+    _print(snap.as_dict())
+    return 0
+
+
+def cmd_als_restore(args) -> int:
+    from .als import snapshot as als_snapshot
+    result = als_snapshot.restore(args.snapshot, args.target, apply=args.apply,
+                                  force=args.force, backup=not args.no_backup)
+    _print(result.as_dict())
+    if not result.applied:
+        print("[dry-run] pass --apply to restore (Live must be closed)",
+              file=sys.stderr)
+    return 0
+
+
 def cmd_set_tempo(args) -> int:
     with Driver(name="set_tempo", dry_run=args.dry_run,
                 snapshot_on_enter=not args.no_snapshot) as d:
@@ -156,6 +220,16 @@ def cmd_uia(args) -> int:
     return 0 if result.ok else 1
 
 
+def cmd_open_set(args) -> int:
+    from .paths import to_windows_path
+    win_path = to_windows_path(Path(args.file).expanduser())
+    result = uia.open_set(win_path, live=args.live,
+                          discard_unsaved=args.discard_unsaved)
+    for event in result.events:
+        print(f"EVENT: {json.dumps(event, default=str)}")
+    return 0 if result.ok else 1
+
+
 def cmd_keys(args) -> int:
     result = uia.send_keys(args.keys, live=args.live)
     if result.stdout.strip():
@@ -206,6 +280,35 @@ def cmd_analyze(args) -> int:
     return 0
 
 
+def cmd_channels(args) -> int:
+    channels_mod.validate()
+    if args.job:
+        _print(channels_mod.select(args.job).as_dict())
+        return 0
+    if args.channel:
+        jobs = channels_mod.by_channel(args.channel,
+                                       include_fallbacks=args.include_fallbacks)
+        _print({"channel": args.channel, "count": len(jobs),
+                "jobs": [j.as_dict() for j in jobs]})
+        return 0
+    if args.json:
+        _print(channels_mod.matrix())
+        return 0
+    for area in channels_mod.areas():
+        print(f"[{area}]")
+        for j in sorted(channels_mod.JOBS.values(), key=lambda x: x.id):
+            if j.area != area:
+                continue
+            mark = "*" if j.verified else " "
+            fb = f"  fallback={'/'.join(j.fallbacks)}" if j.fallbacks else ""
+            req = f"  ({j.requires})" if j.requires else ""
+            print(f"  {mark} {j.id:<26} -> {j.primary}{fb}{req}")
+            print(f"      {j.outcome}")
+    print("\n* = verified on this repo (2026-10-02). "
+          "Channels: " + ", ".join(channels_mod.CHANNELS))
+    return 0
+
+
 def cmd_tasks(args) -> int:
     recipes = {name: mod.DESCRIPTION for name, mod in recipes_pkg.RECIPES.items()}
     uia_tasks = None
@@ -252,6 +355,46 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--live", action="store_true",
                    help="actually load (default is a dry-run that just resolves)")
     p.set_defaults(func=cmd_probe_plugin)
+
+    p = sub.add_parser("als-info", help="read-only: container metadata of a .als")
+    p.add_argument("--path", required=True)
+    p.set_defaults(func=cmd_als_info)
+
+    p = sub.add_parser("als-devices",
+                       help="read-only: plugin devices + exposure state in a .als")
+    p.add_argument("--path", required=True)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_als_devices)
+
+    p = sub.add_parser("als-configure",
+                       help="expose plugin params by editing a copy (offline)")
+    p.add_argument("--source", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument("--request", action="append", metavar="NAME",
+                   help="friendly parameter name to expose (repeatable)")
+    p.add_argument("--device", type=int, default=0)
+    p.add_argument("--declared", default=None,
+                   help="path to a <slug>_parameter_names.json (else auto)")
+    p.add_argument("--apply", action="store_true", help="write (default dry-run)")
+    p.add_argument("--overwrite", action="store_true",
+                   help="allow re-pointing an already-exposed slot")
+    p.add_argument("--no-backup", action="store_true")
+    p.set_defaults(func=cmd_als_configure)
+
+    p = sub.add_parser("als-snapshot", help="hashed whole-file backup of a .als")
+    p.add_argument("--path", required=True)
+    p.add_argument("--dest", default=None)
+    p.add_argument("--label", default="snapshot")
+    p.set_defaults(func=cmd_als_snapshot)
+
+    p = sub.add_parser("als-restore", help="restore a .als from a snapshot")
+    p.add_argument("--snapshot", required=True)
+    p.add_argument("--target", required=True)
+    p.add_argument("--apply", action="store_true", help="write (default dry-run)")
+    p.add_argument("--force", action="store_true",
+                   help="restore even if Live appears to be running")
+    p.add_argument("--no-backup", action="store_true")
+    p.set_defaults(func=cmd_als_restore)
 
     p = sub.add_parser("set-tempo", help="set tempo (verified)")
     p.add_argument("--bpm", type=float, required=True)
@@ -317,6 +460,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="allow human handoff steps (default: fail the item)")
     p.set_defaults(func=cmd_batch)
 
+    p = sub.add_parser("open-set",
+                       help="open a .als via the Windows Open dialog (UIA)")
+    p.add_argument("--file", required=True,
+                   help="path to the .als (WSL or Windows; translated for Live)")
+    p.add_argument("--live", action="store_true")
+    p.add_argument("--discard-unsaved", action="store_true",
+                   help="allow dismissing a save prompt (default: abort)")
+    p.set_defaults(func=cmd_open_set)
+
     p = sub.add_parser("keys", help="send a raw keystroke sequence (menu shortcuts)")
     p.add_argument("--keys", required=True,
                    help="pywinauto sequence, e.g. '^+r' = Ctrl+Shift+R (Export)")
@@ -327,6 +479,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--file", required=True)
     p.add_argument("--target-lufs", type=float, default=None)
     p.set_defaults(func=cmd_analyze)
+
+    p = sub.add_parser("channels",
+                       help="channel-selection matrix (LOM/ALS/UIA/handoff)")
+    p.add_argument("--job", default="", help="show one job by id")
+    p.add_argument("--channel", default="", choices=["", *channels_mod.CHANNELS],
+                   help="filter by channel")
+    p.add_argument("--include-fallbacks", action="store_true",
+                   help="with --channel, also include jobs where it is a fallback")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_channels)
 
     p = sub.add_parser("tasks", help="list recipes and UIA tasks")
     p.set_defaults(func=cmd_tasks)
