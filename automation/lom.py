@@ -210,6 +210,23 @@ class LomClient:
             params["chain_index"] = int(chain_index)
         return self.send("get_device_parameters", **params)
 
+    def get_parameter_names(self, track_index: int, device_index: int,
+                            chain_index: int | None = None) -> dict:
+        """Return a plugin's OWN declared parameter list (not just the exposed
+        strip), via the Remote Script's `get_parameter_names` command.
+
+        The index into the returned `names` list is the value that belongs in an
+        `.als` slot's `ParameterId`. May report `method_present: false` if the
+        Live version/device does not expose it.
+        """
+        params: dict[str, Any] = {
+            "track_index": int(track_index),
+            "device_index": int(device_index),
+        }
+        if chain_index is not None:
+            params["chain_index"] = int(chain_index)
+        return self.send("get_parameter_names", **params)
+
     def set_device_parameter(self, track_index: int, device_index: int,
                              value: float, parameter_name: str | None = None,
                              parameter_index: int | None = None,
