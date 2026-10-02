@@ -45,10 +45,11 @@ the object.
 | `session.loop_region` | Set/enable arrangement loop | lom | | * | |
 | `session.cue_points` | Create/delete/jump cue points | lom | | * | |
 | `session.view` | Switch view; zoom/scroll arrangement | lom | | * | |
-| `session.time_signature` | Set time signature | lom | | | Remote Script extension |
-| `session.metronome` | Toggle metronome / count-in | lom | | | Remote Script extension |
-| `session.record` | Arm + start recording | uia | lom | | LOM path needs an extension |
-| `session.selected_context` | Read selected track / clip / view | lom | | | Remote Script extension |
+| `session.time_signature` | Set time signature | lom | | * | W1: `set_time_signature` |
+| `session.metronome` | Toggle metronome / count-in | lom | | * | W1: `set_metronome`; `count_in_duration` is get+observe only (setter deferred) |
+| `session.record` | Arm + start recording | lom | uia | * | W1: `set_track_arm` + `trigger_session_record` |
+| `session.selected_context` | Read selected track / clip / scene / view | lom | | * | W1: `get_selection` |
+| `session.scenes` | Create / delete / rename / fire scenes; stop all clips | lom | | * | W1: `create_scene`/`delete_scene`/`set_scene_name`/`fire_scene`/`stop_all_clips` |
 
 ## Tracks
 
@@ -57,8 +58,8 @@ the object.
 | `track.create_delete` | Create / delete tracks | lom | | * | |
 | `track.rename` | Rename a track | lom | | * | |
 | `track.volume_pan` | Set volume / panning | lom | | * | |
-| `track.mute_solo` | Mute / solo / activator | uia | lom | | LOM setter not implemented |
-| `track.arm_monitor` | Arm track + set monitor mode | uia | | * | `arm_track` task |
+| `track.mute_solo` | Mute / solo / activator | lom | uia | * | W1: `set_track_mute`/`set_track_solo` read-back |
+| `track.arm_monitor` | Arm track + set monitor mode | uia | lom | * | `arm_track` task; arm now via LOM `set_track_arm`, monitor mode has no LOM surface |
 | `track.freeze_flatten` | Freeze / flatten | handoff | uia | | Context menu; no confirmed shortcut |
 
 ## Clips / arrangement
@@ -106,7 +107,7 @@ the object.
 | `file.export_render` | Render/export audio | handoff | uia | | Modal dialog; no render API. `export_audio` recipe |
 | `file.collect_all_save` | Collect All and Save | uia | | | File menu |
 | `file.undo` | Undo / redo | uia | | | `^z`; never the only safety net |
-| `project.path` | Read current project path | lom | | | Remote Script extension, or `$ABLETON_SET_PATH` |
+| `project.path` | Read current project path | lom | | * | W1: `Song.file_path` via `get_project_path`; `$ABLETON_SET_PATH` is a legacy fallback |
 
 ## Offline analysis
 

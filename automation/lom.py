@@ -45,6 +45,12 @@ STATE_MODIFYING = frozenset({
     "add_notes_to_arrangement_clip", "set_device_enabled",
     "delete_device", "delete_track", "navigate_preset",
     "set_track_volume", "set_track_panning",
+    # W1 Remote Script extension pack
+    "set_time_signature", "set_metronome", "set_count_in",
+    "create_scene", "delete_scene", "set_scene_name",
+    "fire_scene", "stop_all_clips",
+    "set_track_mute", "set_track_solo", "set_track_arm",
+    "trigger_session_record",
 })
 
 
@@ -168,6 +174,51 @@ class LomClient:
     def set_view(self, view: str) -> dict:
         return self.send("set_view", view_name=view)
 
+    # -- W1 session context / control ---------------------------------------
+
+    def project_path(self) -> dict:
+        """Current Live Set path/name (empty until saved)."""
+        return self.send("get_project_path")
+
+    def selection(self) -> dict:
+        """Selected track / scene / clip / slot / device."""
+        return self.send("get_selection")
+
+    def transport_info(self) -> dict:
+        """Transport read-back: playing, record state, position (beats)."""
+        return self.send("get_transport_info")
+
+    def set_time_signature(self, numerator: int, denominator: int) -> dict:
+        return self.send("set_time_signature", numerator=int(numerator),
+                         denominator=int(denominator))
+
+    def set_metronome(self, enabled: bool) -> dict:
+        return self.send("set_metronome", enabled=bool(enabled))
+
+    def set_count_in(self, duration: int) -> dict:
+        return self.send("set_count_in", duration=int(duration))
+
+    def scenes(self) -> dict:
+        return self.send("get_scenes")
+
+    def create_scene(self, index: int = -1) -> dict:
+        return self.send("create_scene", index=int(index))
+
+    def delete_scene(self, index: int) -> dict:
+        return self.send("delete_scene", index=int(index))
+
+    def set_scene_name(self, index: int, name: str) -> dict:
+        return self.send("set_scene_name", index=int(index), name=name)
+
+    def fire_scene(self, index: int, force_legato: bool = False,
+                   can_select_scene_on_launch: bool = True) -> dict:
+        return self.send("fire_scene", index=int(index),
+                         force_legato=bool(force_legato),
+                         can_select_scene_on_launch=bool(can_select_scene_on_launch))
+
+    def stop_all_clips(self, quantized: bool = True) -> dict:
+        return self.send("stop_all_clips", quantized=bool(quantized))
+
     # -- tracks --------------------------------------------------------------
 
     def track_info(self, track_index: int) -> dict:
@@ -184,6 +235,24 @@ class LomClient:
 
     def set_track_name(self, track_index: int, name: str) -> dict:
         return self.send("set_track_name", track_index=int(track_index), name=name)
+
+    def set_track_mute(self, track_index: int, mute: bool) -> dict:
+        return self.send("set_track_mute", track_index=int(track_index),
+                         mute=bool(mute))
+
+    def set_track_solo(self, track_index: int, solo: bool) -> dict:
+        return self.send("set_track_solo", track_index=int(track_index),
+                         solo=bool(solo))
+
+    def set_track_arm(self, track_index: int, arm: bool) -> dict:
+        return self.send("set_track_arm", track_index=int(track_index),
+                         arm=bool(arm))
+
+    def trigger_session_record(self, record_length: float | None = None) -> dict:
+        params: dict[str, Any] = {}
+        if record_length is not None:
+            params["record_length"] = float(record_length)
+        return self.send("trigger_session_record", **params)
 
     def create_midi_track(self, index: int = -1) -> dict:
         return self.send("create_midi_track", index=int(index))
@@ -281,6 +350,14 @@ class LomClient:
     def create_clip(self, track_index: int, clip_index: int, length: float = 4.0) -> dict:
         return self.send("create_clip", track_index=int(track_index),
                          clip_index=int(clip_index), length=float(length))
+
+    def fire_clip(self, track_index: int, clip_index: int) -> dict:
+        return self.send("fire_clip", track_index=int(track_index),
+                         clip_index=int(clip_index))
+
+    def stop_clip(self, track_index: int, clip_index: int) -> dict:
+        return self.send("stop_clip", track_index=int(track_index),
+                         clip_index=int(clip_index))
 
     def add_notes_to_clip(self, track_index: int, clip_index: int,
                           notes: list[dict]) -> dict:

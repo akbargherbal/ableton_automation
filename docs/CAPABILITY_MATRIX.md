@@ -29,7 +29,9 @@ Read and/or write through `automation.lom.LomClient`:
 | Domain | Commands |
 |---|---|
 | Session/transport | `get_session_info`, `set_tempo`, `start_playback`, `stop_playback`, `set_song_time`, `set_arrangement_loop` |
-| Tracks | `get_track_info`, `create_midi_track`, `delete_track`, `set_track_name`, `get_track_volume`, `set_track_volume`, `set_track_panning` |
+| Session context (W1) | `get_project_path`, `get_selection`, `get_transport_info`, `get_scenes` |
+| Session control (W1) | `set_time_signature`, `set_metronome`, `set_count_in`, `create_scene`, `delete_scene`, `set_scene_name`, `fire_scene`, `stop_all_clips`, `trigger_session_record` |
+| Tracks | `get_track_info`, `create_midi_track`, `delete_track`, `set_track_name`, `get_track_volume`, `set_track_volume`, `set_track_panning`, `set_track_mute`, `set_track_solo`, `set_track_arm` |
 | Clips/notes | `create_clip`, `add_notes_to_clip`, `set_clip_name`, `fire_clip`, `stop_clip` |
 | Arrangement | `get_arrangement_info`, `create_arrangement_midi_clip`, `create_arrangement_audio_clip`, `duplicate_to_arrangement`, `delete_arrangement_clip`, `set_arrangement_clip_property`, `manage_clip_automation` |
 | Cue points | `get_cue_points`, `create_cue_point`, `delete_cue_point`, `jump_to_cue` |
@@ -38,7 +40,12 @@ Read and/or write through `automation.lom.LomClient`:
 | View | `set_view`, `control_arrangement_view` |
 
 Verified live: `set_tempo` 120→124→120 with snapshot/diff/verify round-trip;
-device load + parameter dump + device delete; session track create/delete.
+device load + parameter dump + device delete; session track create/delete;
+**W1 extension pack** (`scripts/live_smoke_w1.py`, 25/25 checks): project path,
+selection, transport read-back, time signature `3/4`→`4/4`, metronome, track
+mute/solo/arm, scene create/rename/fire/delete, `stop_all_clips`, and
+`trigger_session_record`. `set_count_in` is deferred: `count_in_duration` is
+get+observe only in the Live 12.1 LOM.
 
 ## 1b. ALS capabilities (offline; Live closed for writes)
 
@@ -143,11 +150,11 @@ Known-good shortcuts (from `~/Jupyter_Notebooks/OpenCode/ableton-md-manual`):
 | **Save / Save As** | No checkpoint via LOM | UI: `^s`/`^+s`; `.als` backup also via `ABLETON_SET_PATH` |
 | **Freeze / Flatten** | Standard bounce steps | UI context menu (needs survey) |
 | **Undo** | Rollback | UI `^z`; not a substitute for snapshot |
-| **Scene management** | Post claims it; server has none | Extend Remote Script |
-| **Get selected track/clip/view** | Driver context awareness | Extend Remote Script |
-| **Time signature, metronome, record** | Session control | Extend Remote Script |
+| ~~**Scene management**~~ | — | **Resolved (W1)**: `create_scene`/`delete_scene`/`set_scene_name`/`fire_scene`/`stop_all_clips` |
+| ~~**Get selected track/clip/view**~~ | — | **Resolved (W1)**: `get_selection` |
+| ~~**Time signature, metronome, record**~~ | — | **Resolved (W1)**: `set_time_signature`, `set_metronome`, `set_track_arm` + `trigger_session_record` (count-in *setter* deferred — LOM read-only) |
 | **Plugin GUI-only params** (Pro-Q 4, Pro-C 3, Ozone EQ/Dynamics) | Can't set params via LOM directly | **Solved offline**: `als-configure` exposes them → LOM after reopen (Gate C). UIA/presets remain live fallbacks. |
-| **Project file path** | `.als` backup | Extend Remote Script with `get_project_path`, or `ABLETON_SET_PATH` |
+| ~~**Project file path**~~ | — | **Resolved (W1)**: `get_project_path` reads `Song.file_path`; `$ABLETON_SET_PATH` is a legacy fallback |
 
 ## 6. Corrected claims from the old README/policy
 

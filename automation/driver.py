@@ -8,6 +8,7 @@ should talk to lom/uia directly.
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,20 @@ from .log import RunLog
 from .lom import LomClient
 
 RUNS_DIR_NAME = "RUNS"
+
+
+def _playing_tracks(tracks: list[dict]) -> list[int]:
+    """Indices of tracks with a Session clip actually playing.
+
+    `playing_slot_index`: first slot is 0, -1 = arrangement recording with no
+    Session clip, -2 = the Clip Stop slot was fired. Only >= 0 is playback.
+    """
+    out: list[int] = []
+    for t in tracks:
+        idx = t.get("playing_slot_index")
+        if isinstance(idx, int) and idx >= 0:
+            out.append(int(t.get("index", -1)))
+    return out
 
 
 class ChannelUnavailable(NotImplementedError):
@@ -202,6 +217,236 @@ class Driver:
         self.log.event("action_result", label=desc, layer="lom", result="success",
                        actual=actual)
         return {"tempo": actual}
+
+    # -- W1: session context and control ------------------------------------
+
+    def project_path(self) -> dict:
+        info = self.client.project_path()
+        self.log.event("project_path", file_path=info.get("file_path"),
+                       name=info.get("name"), saved=info.get("saved"))
+        return info
+
+    def selection(self) -> dict:
+        info = self.client.selection()
+        self.log.event("selection",
+                       selected_track_index=info.get("selected_track_index"),
+                       selected_scene_index=info.get("selected_scene_index"),
+                       detail_clip=info.get("detail_clip"))
+        return info
+
+    def transport_info(self) -> dict:
+        info = self.client.transport_info()
+        self.log.event("transport_info", is_playing=info.get("is_playing"),
+                       record_mode=info.get("record_mode"),
+                       position_beats=info.get("current_position_beats"))
+        return info
+
+    def scenes(self) -> dict:
+        info = self.client.scenes()
+        self.log.event("scenes", scene_count=info.get("scene_count"))
+        return info
+
+    def set_time_signature(self, numerator: int, denominator: int) -> dict | None:
+        desc = f"set time signature = {numerator}/{denominator}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.set_time_signature(numerator, denominator)
+        info = self.client.transport_info()
+        actual = (int(info.get("signature_numerator")),
+                  int(info.get("signature_denominator")))
+        expected = (int(numerator), int(denominator))
+        if actual != expected:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=actual)
+            raise verify.VerificationFailed(
+                f"time signature: requested {expected}, read back {actual}")
+        self.log.event("action_result", label=desc, layer="lom",
+                       result="success", actual=actual)
+        return result
+
+    def set_metronome(self, enabled: bool) -> dict | None:
+        desc = f"set metronome = {bool(enabled)}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.set_metronome(enabled)
+        actual = bool(self.client.transport_info().get("metronome"))
+        if actual != bool(enabled):
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=actual)
+            raise verify.VerificationFailed(
+                f"metronome: requested {bool(enabled)}, read back {actual}")
+        self.log.event("action_result", label=desc, layer="lom",
+                       result="success", actual=actual)
+        return result
+
+    def set_count_in(self, duration: int) -> dict | None:
+        """Set the metronome count-in index (0=None, 1=1 Bar, 2=2 Bars, 3=4 Bars).
+
+        The Live 12.1 reference marks `count_in_duration` get+observe only; if
+        the write is rejected the numeric read-back will not match and this
+        raises VerificationFailed (the roadmap accepts an explicit deferral).
+        """
+        desc = f"set count-in = {int(duration)}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.set_count_in(duration)
+        actual = int(self.client.transport_info().get("count_in_duration", -1))
+        if actual != int(duration):
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=actual, response=result)
+            raise verify.VerificationFailed(
+                f"count-in: requested {int(duration)}, read back {actual} "
+                f"(response={result})")
+        self.log.event("action_result", label=desc, layer="lom",
+                       result="success", actual=actual)
+        return result
+
+    def create_scene(self, index: int = -1) -> dict | None:
+        desc = f"create scene at {index}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.create_scene(index)
+        scenes = self.client.scenes()
+        idx = int(result.get("index", -1))
+        ok = (0 <= idx < scenes.get("scene_count", 0)
+              and scenes["scenes"][idx].get("name") == result.get("name"))
+        if not ok:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=idx,
+                           scene_count=scenes.get("scene_count"))
+            raise verify.VerificationFailed(
+                f"create scene: index {idx} not readable after creation")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       index=idx, scene_count=scenes.get("scene_count"))
+        return result
+
+    def delete_scene(self, index: int) -> dict | None:
+        before = int(self.client.scenes().get("scene_count", 0))
+        desc = f"delete scene at {index}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.delete_scene(index)
+        after = int(self.client.scenes().get("scene_count", 0))
+        if after != before - 1:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", before=before, after=after)
+            raise verify.VerificationFailed(
+                f"delete scene: count was {before}, now {after}")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       before=before, after=after)
+        return result
+
+    def set_scene_name(self, index: int, name: str) -> dict | None:
+        desc = f"rename scene {index} -> {name!r}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.set_scene_name(index, name)
+        actual = self.client.scenes()["scenes"][int(index)].get("name")
+        if actual != name:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=actual)
+            raise verify.VerificationFailed(
+                f"scene {index}: requested name {name!r}, read back {actual!r}")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       actual=actual)
+        return result
+
+    def fire_scene(self, index: int, *, check: bool = True) -> dict | None:
+        desc = f"fire scene {index}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.fire_scene(index)
+        triggered = bool(result.get("is_triggered"))
+        if check and not triggered:
+            info = self.client.scenes()["scenes"][int(index)]
+            triggered = bool(info.get("is_triggered"))
+        if check and not triggered:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed")
+            raise verify.VerificationFailed(
+                f"fire scene {index}: scene never reported is_triggered")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       is_triggered=triggered)
+        return result
+
+    def stop_all_clips(self, quantized: bool = True,
+                       timeout: float = 5.0) -> dict | None:
+        desc = f"stop all clips (quantized={bool(quantized)})"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        result = self.client.stop_all_clips(quantized)
+        deadline = time.time() + timeout
+        remaining: list[int] = []
+        while True:
+            remaining = _playing_tracks(self.client.all_tracks())
+            if not remaining:
+                break
+            if time.time() > deadline:
+                break
+            time.sleep(0.25)
+        if remaining:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", still_playing=remaining)
+            raise verify.VerificationFailed(
+                f"stop all clips: tracks still playing after {timeout}s: {remaining}")
+        self.log.event("action_result", label=desc, layer="lom", result="success")
+        return result
+
+    def set_track_mute(self, track_index: int, mute: bool) -> dict | None:
+        return self._set_track_flag(track_index, "mute", bool(mute))
+
+    def set_track_solo(self, track_index: int, solo: bool) -> dict | None:
+        return self._set_track_flag(track_index, "solo", bool(solo))
+
+    def set_track_arm(self, track_index: int, arm: bool) -> dict | None:
+        return self._set_track_flag(track_index, "arm", bool(arm))
+
+    def _set_track_flag(self, track_index: int, flag: str,
+                        value: bool) -> dict | None:
+        desc = f"set track[{track_index}] {flag} = {value}"
+        if not self._may_proceed(desc, "lom"):
+            return None
+        setter = getattr(self.client, f"set_track_{flag}")
+        setter(track_index, value)
+        actual = self.client.track_info(track_index).get(flag)
+        if actual is None or bool(actual) != value:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", actual=actual)
+            raise verify.VerificationFailed(
+                f"track {track_index} {flag}: requested {value}, read back {actual}")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       actual=bool(actual))
+        return {flag: bool(actual)}
+
+    def trigger_session_record(self, record_length: float | None = None,
+                               timeout: float = 3.0) -> dict | None:
+        """Toggle Session recording on the armed track, verified by status change.
+
+        `session_record_status` is the LOM read-back (0 = stopped; non-zero =
+        recording/armed). Requires an armed track; pair with `set_track_arm`.
+        """
+        desc = "trigger session record" + (
+            "" if record_length is None else f" ({record_length} beats)")
+        if not self._may_proceed(desc, "lom"):
+            return None
+        before = int(self.client.transport_info().get("session_record_status", 0))
+        result = self.client.trigger_session_record(record_length)
+        deadline = time.time() + timeout
+        status = before
+        while time.time() < deadline:
+            status = int(self.client.transport_info().get("session_record_status", 0))
+            if status != before:
+                break
+            time.sleep(0.1)
+        if status == before:
+            self.log.event("action_result", label=desc, layer="lom",
+                           result="failed", before=before, after=status)
+            raise verify.VerificationFailed(
+                f"session record: status stayed {before} (no armed track?)")
+        self.log.event("action_result", label=desc, layer="lom", result="success",
+                       before=before, after=status)
+        return {**result, "session_record_status": status,
+                "previous_status": before}
 
     def load_plugin(self, track_index: int, plugin_name: str, *,
                     exact: bool = False) -> dict | None:

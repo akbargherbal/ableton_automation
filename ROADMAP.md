@@ -37,12 +37,12 @@ Principles, carried from the policy:
 `lom`/`uia`/`als` channels, `batch` with resume, `analysis` (LUFS/true-peak/
 spectrum), recipes, handoff, plugin profiles. 41 tests pass.
 
-**Channel matrix (`automation.run channels`):** 43 jobs, 8 areas, 21 measured.
+**Channel matrix (`automation.run channels`):** 44 jobs, 8 areas, 28 measured.
 
 | Channel | Jobs | Character |
 |---|---:|---|
-| LOM | 27 | The bulk of session/track/clip/device/browser — deterministic |
-| UIA | 8 | Menus, dialogs, arm/monitor, browser drag-drop |
+| LOM | 30 | The bulk of session/track/clip/device/browser — deterministic |
+| UIA | 6 | Menus, dialogs, arm/monitor, browser drag-drop |
 | sdk_future | 3 | Trigger-gated (12.4.5+) |
 | handoff | 2 | Export, Freeze/Flatten |
 | ALS | 2 | Drives GUI-only plugin params; whole-file snapshot/restore |
@@ -50,14 +50,20 @@ spectrum), recipes, handoff, plugin profiles. 41 tests pass.
 
 **Proven legs:**
 - Wide LOM coverage; numeric read-back.
+- **W1 Remote Script extension pack** (live smoke 2026-10-02, 25/25): project
+  path, selection, transport read-back, time signature, metronome, track
+  mute/solo/arm, scene create/rename/fire/delete, `stop_all_clips`,
+  `trigger_session_record`.
 - **ALS unlocks GUI-only plugins** (Gate C): expose a parameter offline → reopen →
   LOM set/read-back (`+2.18 dB → 0.75 → +15.00 dB`) with no plugin GUI.
 - **Handoff export** (`export_audio` prepare/verify) + objective measurement.
 - Batch mastering over the legacy Suno manifest (former example, still works).
 
 **The real gaps (from the matrix):**
-1. LOM commands missing for session control and context (time signature, metronome,
-   record, selection, mute/solo setters, scenes, stop-all, project path).
+1. ~~LOM commands missing for session control and context (time signature,
+   metronome, record, selection, mute/solo setters, scenes, stop-all, project
+   path).~~ **Closed by W1 (2026-10-02)**: added to the Remote Script; only the
+   count-in *setter* is deferred (LOM read-only).
 2. Plugin coverage is per-plugin and manual; no at-scale classification/profiles.
 3. ALS writer is proven for one param; not yet exercised broadly, and the reopen
    loop is a handoff.
@@ -72,19 +78,23 @@ Each workstream has concrete tasks, an **exit criterion**, and **verification**.
 Workstream W1 is highest leverage: it converts fragile UIA jobs into deterministic
 LOM and shrinks the "requires" column of the matrix.
 
-### W1 — Remote Script extension pack (LOM coverage)  ← highest leverage
-- [ ] `get_project_path` (kills the `ABLETON_SET_PATH` fallback).
-- [ ] Selection getters: selected track / clip / scene / view.
-- [ ] Scenes: create / delete / rename / fire; **stop-all**.
-- [ ] Session control setters: time signature, metronome, count-in.
-- [ ] Track `mute`/`solo`/`arm` **setters** (read already works).
-- [ ] Transport read-back: is-playing, record state, current position units.
-- [ ] Extend `LomClient` + `driver` + CLI for each; add a live smoke script.
-- **Exit:** every session-control matrix job whose primary is `lom` with
-  `requires: Remote Script extension` is either implemented or explicitly deferred
-  with a reason; the UIA fallbacks (mute/solo, record) become LOM primaries.
-- **Verify:** live smoke test asserting read-back after each set; matrix rows
-  updated (`automation.run channels`).
+### W1 — Remote Script extension pack (LOM coverage)  ← highest priority — DONE 2026-10-02
+- [x] `get_project_path` (`Song.file_path`; kills the `ABLETON_SET_PATH` fallback).
+- [x] Selection getters: selected track / clip / scene / view / slot / device.
+- [x] Scenes: create / delete / rename / fire; **stop-all**.
+- [x] Session control setters: time signature, metronome; track
+      `mute`/`solo`/`arm`; `trigger_session_record`.
+- [x] Transport read-back: is-playing, record state, current position units
+      (`position_unit: "beats"`).
+- [~] `set_count_in` **deferred**: `count_in_duration` is get+observe (read-only)
+      in the Live 12.1 LOM; the getter is exposed in `get_transport_info`.
+- [x] Extended `LomClient` + `driver` + CLI; live smoke script
+      `scripts/live_smoke_w1.py` (25 checks pass, 1 explicit deferral).
+- **Exit:** every session-control `lom` job is implemented except the count-in
+  setter, which is deferred with the LOM access-mode reason; `track.mute_solo`
+  and `session.record` are LOM primaries with UIA fallbacks.
+- **Verify:** `scripts/live_smoke_w1.py` asserts numeric read-back after every
+  set (mutations restored); matrix rows updated via `automation.run channels`.
 - **Note:** requires a full Ableton restart to load. Install path is the OneDrive
   `User Library` Remote Script, not `%APPDATA%`.
 

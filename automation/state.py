@@ -4,9 +4,9 @@ Snapshotting is the safety precondition for destructive recipes: capture the
 LOM-visible state before acting so a run can report exactly what changed, and
 so a diff can drive rollback verification.
 
-Note: the Remote Script currently exposes no `get_project_path` command, so
-backing up the .als is best-effort (env ABLETON_SET_PATH, else a LOM query, else
-skipped with an explicit warning). See AUTOMATION_PLAN.md §4.C.
+The Remote Script now exposes `get_project_path` (W1), so backing up the .als
+is a LOM read; `$ABLETON_SET_PATH` remains only as a fallback for an older
+Remote Script.
 """
 
 from __future__ import annotations
@@ -106,17 +106,20 @@ def diff(before: dict, after: dict) -> list[dict]:
 
 
 def try_project_path(client: LomClient) -> str | None:
-    """Best-effort current .als path (env override, then LOM command)."""
-    env = os.environ.get("ABLETON_SET_PATH")
-    if env:
-        return env
+    """Current .als path via the Remote Script LOM (`get_project_path`).
+
+    W1 made this the primary source; `$ABLETON_SET_PATH` survives only as a
+    fallback for a Remote Script older than the extension pack.
+    """
     try:
         result = client.send("get_project_path")
     except LomError:
-        return None
+        result = None
     if isinstance(result, dict):
-        return result.get("file_path") or result.get("path")
-    return None
+        path = result.get("file_path") or result.get("path")
+        if path:
+            return path
+    return os.environ.get("ABLETON_SET_PATH")
 
 
 def backup_set(client: LomClient, dest_dir: Path | str) -> Path | None:

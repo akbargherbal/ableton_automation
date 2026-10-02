@@ -18,6 +18,18 @@
     python3 -m automation.run channels [--job ID] [--channel C] [--json]
     python3 -m automation.run open-set --file X.als [--discard-unsaved]
     python3 -m automation.run tasks
+    # W1 session context/control (Remote Script extension pack)
+    python3 -m automation.run project-path
+    python3 -m automation.run selection
+    python3 -m automation.run transport
+    python3 -m automation.run scenes
+    python3 -m automation.run set-time-signature --numerator 3 --denominator 4
+    python3 -m automation.run set-metronome --state on
+    python3 -m automation.run scene-create --index -1
+    python3 -m automation.run scene-rename --index 0 --name Intro
+    python3 -m automation.run scene-fire --index 0
+    python3 -m automation.run stop-all-clips [--immediate]
+    python3 -m automation.run track-mute --track 0 --state on   # also track-solo, track-arm
 
 Track/device indices are 0-based throughout (matching --list-tracks and the
 Remote Script / LOM), not the 1-based convention of the MCP tools.
@@ -179,6 +191,103 @@ def cmd_set_param(args) -> int:
         result = d.set_param(args.track, args.device, args.name, args.value,
                              tol=args.tol)
         _print(result)
+    return 0
+
+
+def cmd_project_path(args) -> int:
+    with Driver(name="project_path", snapshot_on_enter=False) as d:
+        _print(d.project_path())
+    return 0
+
+
+def cmd_selection(args) -> int:
+    with Driver(name="selection", snapshot_on_enter=False) as d:
+        _print(d.selection())
+    return 0
+
+
+def cmd_transport(args) -> int:
+    with Driver(name="transport", snapshot_on_enter=False) as d:
+        _print(d.transport_info())
+    return 0
+
+
+def cmd_scenes(args) -> int:
+    with Driver(name="scenes", snapshot_on_enter=False) as d:
+        _print(d.scenes())
+    return 0
+
+
+def cmd_set_time_signature(args) -> int:
+    with Driver(name="set_time_signature", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.set_time_signature(args.numerator, args.denominator))
+    return 0
+
+
+def cmd_set_metronome(args) -> int:
+    enabled = args.state == "on"
+    with Driver(name="set_metronome", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.set_metronome(enabled))
+    return 0
+
+
+def cmd_set_count_in(args) -> int:
+    with Driver(name="set_count_in", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.set_count_in(args.duration))
+    return 0
+
+
+def cmd_scene_create(args) -> int:
+    with Driver(name="scene_create", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.create_scene(args.index))
+    return 0
+
+
+def cmd_scene_delete(args) -> int:
+    with Driver(name="scene_delete", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.delete_scene(args.index))
+    return 0
+
+
+def cmd_scene_rename(args) -> int:
+    with Driver(name="scene_rename", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.set_scene_name(args.index, args.name))
+    return 0
+
+
+def cmd_scene_fire(args) -> int:
+    with Driver(name="scene_fire", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.fire_scene(args.index, check=not args.no_check))
+    return 0
+
+
+def cmd_stop_all_clips(args) -> int:
+    with Driver(name="stop_all_clips", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.stop_all_clips(quantized=not args.immediate))
+    return 0
+
+
+def cmd_track_flag(args) -> int:
+    value = args.state == "on"
+    setter = getattr(Driver, f"set_track_{args.flag}")
+    with Driver(name=f"track_{args.flag}", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(setter(d, args.track, value))
+    return 0
+
+
+def cmd_session_record(args) -> int:
+    with Driver(name="session_record", dry_run=args.dry_run,
+                snapshot_on_enter=not args.no_snapshot) as d:
+        _print(d.trigger_session_record(args.length))
     return 0
 
 
@@ -411,6 +520,90 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-snapshot", action="store_true")
     p.set_defaults(func=cmd_set_param)
+
+    p = sub.add_parser("project-path",
+                       help="read the current Live Set path (LOM get_project_path)")
+    p.set_defaults(func=cmd_project_path)
+
+    p = sub.add_parser("selection",
+                       help="read selected track / scene / clip / slot / device")
+    p.set_defaults(func=cmd_selection)
+
+    p = sub.add_parser("transport", help="read transport state and position")
+    p.set_defaults(func=cmd_transport)
+
+    p = sub.add_parser("scenes", help="list all scenes")
+    p.set_defaults(func=cmd_scenes)
+
+    p = sub.add_parser("set-time-signature", help="set project time signature")
+    p.add_argument("--numerator", type=int, required=True)
+    p.add_argument("--denominator", type=int, required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_set_time_signature)
+
+    p = sub.add_parser("set-metronome", help="toggle the metronome")
+    p.add_argument("--state", choices=["on", "off"], required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_set_metronome)
+
+    p = sub.add_parser("set-count-in",
+                       help="set count-in index (0=None,1=1Bar,2=2Bars,3=4Bars)")
+    p.add_argument("--duration", type=int, required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_set_count_in)
+
+    p = sub.add_parser("scene-create", help="create a scene (-1 = end)")
+    p.add_argument("--index", type=int, default=-1)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_scene_create)
+
+    p = sub.add_parser("scene-delete", help="delete a scene")
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_scene_delete)
+
+    p = sub.add_parser("scene-rename", help="rename a scene")
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--name", required=True)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_scene_rename)
+
+    p = sub.add_parser("scene-fire", help="fire a scene")
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--no-check", action="store_true",
+                   help="skip the is_triggered read-back (empty scenes)")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_scene_fire)
+
+    p = sub.add_parser("stop-all-clips", help="stop all playing session clips")
+    p.add_argument("--immediate", action="store_true",
+                   help="ignore launch quantization")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_stop_all_clips)
+
+    for flag in ("mute", "solo", "arm"):
+        p = sub.add_parser(f"track-{flag}", help=f"set a track's {flag} state")
+        p.add_argument("--track", type=int, required=True)
+        p.add_argument("--state", choices=["on", "off"], required=True)
+        p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--no-snapshot", action="store_true")
+        p.set_defaults(func=cmd_track_flag, flag=flag)
+
+    p = sub.add_parser("session-record",
+                       help="toggle session recording on the armed track")
+    p.add_argument("--length", type=float, default=None,
+                   help="limit the take to this many beats")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-snapshot", action="store_true")
+    p.set_defaults(func=cmd_session_record)
 
     p = sub.add_parser("import-audio", help="import an audio file to arrangement")
     p.add_argument("--track", type=int, required=True)

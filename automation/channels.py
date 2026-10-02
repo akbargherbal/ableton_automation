@@ -73,17 +73,23 @@ JOBS: dict[str, Job] = {j.id: j for j in (
     _job("session.view", "session", "Switch view, zoom/scroll arrangement",
          "lom", verified=True),
     _job("session.time_signature", "session", "Set time signature", "lom",
-         requires="Remote Script extension",
-         notes="LOM exposes it; our Remote Script has no command yet."),
+         verified=True, notes="W1: Remote Script `set_time_signature`."),
     _job("session.metronome", "session", "Toggle metronome / count-in", "lom",
-         requires="Remote Script extension"),
-    _job("session.record", "session", "Arm + start recording", "uia",
-         fallbacks=("lom",), requires="Remote Script extension for the LOM path",
-         notes="UIA arm_track exists; LOM recording control is unimplemented."),
+         verified=True,
+         notes="W1: metronome set/verify via `set_metronome`; `count_in_duration` "
+               "is get+observe only in the Live 12.1 LOM (setter deferred)."),
+    _job("session.record", "session", "Arm + start recording", "lom",
+         fallbacks=("uia",), verified=True,
+         notes="W1: `set_track_arm` + `trigger_session_record`; UIA arm_track "
+               "remains the fallback."),
     _job("session.selected_context", "session",
-         "Read selected track / clip / view", "lom",
-         requires="Remote Script extension",
-         notes="Driver context awareness; today only via UI dump."),
+         "Read selected track / clip / scene / view", "lom",
+         verified=True, notes="W1: Remote Script `get_selection`."),
+    _job("session.scenes", "session",
+         "Create / delete / rename / fire scenes; stop all clips", "lom",
+         verified=True,
+         notes="W1: `create_scene`/`delete_scene`/`set_scene_name`/`fire_scene`/"
+               "`stop_all_clips`."),
 
     # -- tracks --------------------------------------------------------------
     _job("track.create_delete", "tracks", "Create / delete tracks", "lom",
@@ -91,11 +97,14 @@ JOBS: dict[str, Job] = {j.id: j for j in (
     _job("track.rename", "tracks", "Rename a track", "lom", verified=True),
     _job("track.volume_pan", "tracks", "Set track volume / panning", "lom",
          verified=True),
-    _job("track.mute_solo", "tracks", "Mute / solo / activator toggles", "uia",
-         fallbacks=("lom",), requires="Remote Script extension for the LOM path",
-         notes="UIA CheckBox path is proven; LOM setter not implemented."),
+    _job("track.mute_solo", "tracks", "Mute / solo / activator toggles", "lom",
+         fallbacks=("uia",), verified=True,
+         notes="W1: LOM `set_track_mute`/`set_track_solo` with read-back; UIA "
+               "CheckBox path is the fallback."),
     _job("track.arm_monitor", "tracks", "Arm track + set monitor mode", "uia",
-         verified=True),
+         fallbacks=("lom",), verified=True,
+         notes="arm now via LOM `set_track_arm`; monitor mode has no LOM surface, "
+               "so UIA remains primary."),
     _job("track.freeze_flatten", "tracks", "Freeze / flatten a track", "handoff",
          fallbacks=("uia",), notes="Context menu; no confirmed shortcut."),
 
@@ -165,8 +174,9 @@ JOBS: dict[str, Job] = {j.id: j for j in (
     _job("file.undo", "files", "Undo / redo", "uia",
          notes="Ctrl+Z; never a substitute for snapshots."),
     _job("project.path", "files", "Read the current project file path", "lom",
-         requires="Remote Script extension (or ABLETON_SET_PATH env)",
-         notes="Falls back to $ABLETON_SET_PATH; no get_project_path command."),
+         verified=True,
+         notes="W1: `Song.file_path` via `get_project_path`; "
+               "$ABLETON_SET_PATH is only a fallback for an older Remote Script."),
 
     # -- offline analysis ----------------------------------------------------
     _job("analysis.measure", "analysis",

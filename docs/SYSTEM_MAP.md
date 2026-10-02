@@ -95,8 +95,10 @@ automation.run ──▶ automation/driver.py ──────┘         (LOM
 
 ## 6. Still unknown / to confirm
 
-- Whether `get_project_path` exists in the installed Remote Script (state.py
-  probes for it; `ABLETON_SET_PATH` is the current fallback).
+- ~~Whether `get_project_path` exists in the installed Remote Script~~ —
+  **resolved (W1)**: the extension pack adds `get_project_path`
+  (`Song.file_path`); `state.py` reads it first and keeps `$ABLETON_SET_PATH`
+  only as a legacy fallback.
 - The exact split between the MCP server's tool surface and `LomClient`'s — the
   MCP server has more tools in places (see `docs/CAPABILITY_MATRIX.md` §1), so
   the two are not 1:1.

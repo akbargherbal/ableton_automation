@@ -47,6 +47,14 @@ Read first:
   `0.75` → `+15.00 dB` read-back.
 - Export/Save/Freeze/Flatten/Undo have no LOM command; menu shortcuts exist and
   are reachable via `automation.run keys` (`^+r`, `^s`, `^+s`, `^z`).
+- **W1 session control (Remote Script extension pack, verified live 2026-10-02):**
+  `get_project_path`, `get_selection`, `get_transport_info`, `get_scenes`,
+  `set_time_signature`, `set_metronome`, `create/delete/rename/fire_scene`,
+  `stop_all_clips`, `set_track_mute/solo/arm`, `trigger_session_record`. Smoke:
+  `python3 scripts/live_smoke_w1.py`. `count_in_duration` is LOM read-only
+  (setter deferred). To install: copy
+  `~/ableton-mcp-extended/AbletonMCP_Remote_Script/__init__.py` to the OneDrive
+  `User Library/Remote Scripts/AbletonMCP/__init__.py` and fully restart Live.
 
 ## Conventions
 
